@@ -58,18 +58,18 @@ def create_dataset(logger: Logger, raw_dataset_paths: List[Path], train_dataset_
     # Load the dataset
     ds = load_dataset(train_dataset_root.as_posix())
 
-    ds_train_devtest = ds['train'].train_test_split(test_size=0.2, seed=42)
-    ds_devtest = ds_train_devtest['test'].train_test_split(test_size=0.5, seed=42)
+    ds_train_test = ds['train'].train_test_split(test_size=0.2, seed=42)
+    # Split the 20% test + valid in half test, half valid
+    ds_valtest = ds_train_test['test'].train_test_split(test_size=0.5, seed=42)
 
     ds_splits = DatasetDict({
-        'train': ds_train_devtest['train'],
-        'valid': ds_devtest['train'],
-        'test': ds_devtest['test']
+        'train': ds_train_test['train'],
+        'valid': ds_valtest['train'],
+        'test': ds_valtest['test']
     })
 
-    train_ds = ds_splits['train']
     # Create label mappings, id2label and label2id from the dataset
-    id2label = {id:label for id, label in enumerate(train_ds.features['label'].names)}
+    id2label = {id:label for id, label in enumerate(combined_stats.keys())}
     label2id = {label:id for id,label in id2label.items()}
     logger.info(label2id)
     logger.info(id2label)
