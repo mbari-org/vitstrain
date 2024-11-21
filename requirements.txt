@@ -1,6 +1,7 @@
-transformers[torch]
-datasets
 matplotlib
 tqdm
 scikit-learn
-torchvision
+torch==2.3.1
+torchvision==0.18.1
+transformers
+datasets
