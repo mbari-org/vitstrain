@@ -43,6 +43,7 @@ def create_dataset(logger: Logger, raw_dataset_paths: List[Path], train_dataset_
 
     # Randomly downsample the dataset to 2000 images per class and copy the images to a new directory
     for label, count in combined_stats.items():
+        images = []
         for path in raw_dataset_paths:
             crop_path = path / 'crops' / str(label)
             images.extend(list(crop_path.glob('*.jpg')))
