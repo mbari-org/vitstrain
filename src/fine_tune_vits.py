@@ -98,6 +98,8 @@ args = TrainingArguments(
     per_device_train_batch_size=50,
     per_device_eval_batch_size=20,
     num_train_epochs=100,
+    gradient_accumulation_steps=2,
+    save_total_limit = 1,
     weight_decay=0.01,
     load_best_model_at_end=True,
     metric_for_best_model="accuracy",
@@ -122,6 +124,9 @@ trainer = Trainer(
 )
 
 # Train the model and save it. This will save the model to a directory of the same name
+# If checkpoints exist, load the best model from the checkpoint
+if Path(model_name).exists() and len(list(Path(model_name).rglob('*.safetensors'))) > 0:
+    trainer.train(model_name)
 trainer.train()
 trainer.save_model(model_name)
 
