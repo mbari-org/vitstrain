@@ -34,16 +34,15 @@ def create_dataset(logger: Logger, raw_dataset_paths: List[Path], train_dataset_
         crop_path = path / 'crops'
         with open(crop_path / 'stats.json') as f:
             stats = json.load(f)
-            for k,v in stats.items():
+            for k,v in stats['total_labels'].items():
                 if k in combined_stats:
-                    combined_stats[k] += v
+                    combined_stats[k] += int(v)
                 else:
-                    combined_stats[k] = v
+                    combined_stats[k] = int(v)
 
-    total_labels = {k:int(v) for k,v in stats['total_labels'].items()}
 
     # Randomly downsample the dataset to 2000 images per class and copy the images to a new directory
-    for label, count in total_labels.items():
+    for label, count in combined_stats.items():
         for path in raw_dataset_paths:
             crop_path = path / 'crops' / str(label)
             images.extend(list(crop_path.glob('*.jpg')))
