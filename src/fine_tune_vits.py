@@ -6,7 +6,8 @@ import logging
 from datetime import datetime
 from pathlib import Path
 from torch.utils.data import DataLoader
-from sklearn.metrics import accuracy_score
+from sklearn.metrics import accuracy_score, precision_score, recall_score
+import seaborn as sns
 import numpy as np
 from transformers import TrainingArguments, Trainer
 from transformers import ViTForImageClassification, ViTImageProcessor
@@ -93,7 +94,7 @@ test_ds.set_transform(val_transforms)
 args = TrainingArguments(
     f"{model_name}-finetuned",
     save_strategy="epoch",
-    evaluation_strategy="epoch",
+    eval_strategy="epoch",
     learning_rate=2e-5,
     per_device_train_batch_size=50,
     per_device_eval_batch_size=20,
@@ -134,13 +135,33 @@ trainer.save_model(model_name)
 # This will output a confusion matrix in the blue color map with only index labels
 outputs = trainer.predict(test_ds)
 
-logger.info(outputs.metrics)
-
 y_true = outputs.label_ids
 y_pred = outputs.predictions.argmax(1)
 
+accuracy = accuracy_score(y_true, y_pred)
+precision = precision_score(y_true, y_pred, average='micro')
+recall = recall_score(y_true, y_pred, average='micro')
+logger.info(f"Accuracy: {accuracy:.2f}, Precision: {precision:.2f}, Recall: {recall:.2f}")
+
 labels = train_ds.features['label'].names
 cm = confusion_matrix(y_true, y_pred)
-disp = ConfusionMatrixDisplay(confusion_matrix=cm, display_labels=labels)
-disp.plot(cmap=plt.cm.Blues)
-plt.savefig("confusion_matrix.png", dpi=300, bbox_inches="tight")
+
+# Normalize the confusion matrix to range 0-1
+cm_normalized = cm.astype('float') / cm.sum(axis=1)[:, np.newaxis]
+all_labels = id2label.values()
+
+plt.figure(figsize=(12, 12))
+sns.heatmap(cm_normalized, xticklabels=all_labels, yticklabels=all_labels, cmap='Blues')
+
+plt.xlabel("Predicted")
+plt.ylabel("True")
+plt.title("Confusion Matrix")
+plt.suptitle(
+            f"CM {model_name} exemplars. Top-1 Accuracy: {accuracy:.2f},  "
+                f"Precision: {precision:.2f}, Recall: {recall:.2f}")
+d = f"{datetime.now():%Y-%m-%d %H%M%S}"
+plt.title(d)
+plot_name = f"confusion_matrix_{model_name}_{d}.png"
+logger.info(f"Saving confusion matrix to {plot_name}")
+plt.savefig(plot_name)
+plt.close()
