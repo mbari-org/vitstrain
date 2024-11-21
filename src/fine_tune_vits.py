@@ -127,8 +127,9 @@ trainer = Trainer(
 # Train the model and save it. This will save the model to a directory of the same name
 # If checkpoints exist, load the best model from the checkpoint
 if Path(model_name).exists() and len(list(Path(model_name).rglob('*.safetensors'))) > 0:
-    trainer.train(model_name)
-trainer.train()
+    trainer.train(resume_from_checkpoint = True)
+else:
+    trainer.train()
 trainer.save_model(model_name)
 
 # Run predictions on the test set. More work needed here to save the confusion matrix and other metrics
