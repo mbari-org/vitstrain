@@ -31,8 +31,8 @@ filter_data = Path('/tmp/UAV/Baseline_filter/')
 # raw_data = Path('/tmp/catsdogs/catsdogstrain')
 # filter_data = Path('/tmp/catsdogs/catsdogstrain')
 
-# Create the dataset from the raw dataset
-ds_splits, id2label, label2id = create_dataset(logger, raw_data, filter_data)
+# Create the dataset from the raw dataset(s)
+ds_splits, id2label, label2id = create_dataset(logger, [raw_data], filter_data)
 
 # The id2label and label2id are used to convert the labels to and from the model's internal representation
 # These are stored in the HuggingFace config.json file with the model, e.g. mbari-uav-vit-b-16/config.json

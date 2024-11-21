@@ -9,6 +9,7 @@ import tqdm
 import json
 import numpy as np
 import torch
+from typing import List
 from datasets import load_dataset, DatasetDict
 
 
@@ -18,21 +19,35 @@ def collate_fn(examples):
     return {"pixel_values": pixel_values, "labels": labels}
 
 
-def create_dataset(logger: Logger, raw_dataset_path: Path, train_dataset_root: Path):
+def create_dataset(logger: Logger, raw_dataset_paths: List[Path], train_dataset_root: Path):
     if train_dataset_root.exists():
         logger.info(f"Removing existing dataset at {train_dataset_root}")
         shutil.rmtree(train_dataset_root)
 
-    crop_path = raw_dataset_path / 'crops'
-    labels = crop_path / 'stats.json'
-    with open(labels) as f:
-        stats = json.load(f)
+    # Combine the raw datasets into a single dataset
+    combined_stats = {}
+    for path in raw_dataset_paths:
+        if not path.exists():
+            raise FileNotFoundError(f"Path {path} does not exist")
+
+        # Combine the stats
+        crop_path = path / 'crops'
+        with open(crop_path / 'stats.json') as f:
+            stats = json.load(f)
+            for k,v in stats.items():
+                if k in combined_stats:
+                    combined_stats[k] += v
+                else:
+                    combined_stats[k] = v
 
     total_labels = {k:int(v) for k,v in stats['total_labels'].items()}
 
     # Randomly downsample the dataset to 2000 images per class and copy the images to a new directory
     for label, count in total_labels.items():
-        images = list((crop_path / str(label)).rglob('*.jpg'))
+        for path in raw_dataset_paths:
+            crop_path = path / 'crops' / str(label)
+            images.extend(list(crop_path.glob('*.jpg')))
+        logger.info(f"Found {len(images)} images for {label}")
         if len(images) > 2000:
             images = np.random.choice(images, 2000, replace=False)
         for image in tqdm.tqdm(images, desc=f"Copying images for {label}"):
