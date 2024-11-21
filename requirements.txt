@@ -3,3 +3,4 @@ datasets
 matplotlib
 tqdm
 scikit-learn
+torchvision
