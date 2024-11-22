@@ -144,12 +144,11 @@ precision = precision_score(y_true, y_pred, average='micro')
 recall = recall_score(y_true, y_pred, average='micro')
 logger.info(f"Accuracy: {accuracy:.2f}, Precision: {precision:.2f}, Recall: {recall:.2f}")
 
-labels = train_ds.features['label'].names
-cm = confusion_matrix(y_true, y_pred)
+all_labels = id2label.values()
+cm = confusion_matrix(y_true, y_pred, labels=range(len(all_labels)))
 
 # Normalize the confusion matrix to range 0-1
 cm_normalized = cm.astype('float') / cm.sum(axis=1)[:, np.newaxis]
-all_labels = id2label.values()
 
 plt.figure(figsize=(12, 12))
 sns.heatmap(cm_normalized, xticklabels=all_labels, yticklabels=all_labels, cmap='Blues')
