@@ -5,21 +5,13 @@
 import logging
 from datetime import datetime
 from pathlib import Path
-from albumentations import (
-    Compose,
-    Resize,
-    RandomResizedCrop,
-    HorizontalFlip,
-    Normalize,
-    CenterCrop,
-    Rotate
-)
+import albumentations as A
 from albumentations.pytorch import ToTensorV2
 from sklearn.metrics import accuracy_score, precision_score, recall_score
 import seaborn as sns
 import numpy as np
 from transformers import TrainingArguments, Trainer
-from transformers import ViTForImageClassification, ViTImageProcessor
+from transformers import  ViTForImageClassification,AutoImageProcessor 
 from sklearn.metrics import confusion_matrix, ConfusionMatrixDisplay
 from utils import collate_fn, create_dataset
 import matplotlib.pyplot as plt
@@ -48,60 +40,58 @@ ds_splits, id2label, label2id = create_dataset(logger, [raw_data], filter_data)
 base_model = "google/vit-base-patch16-224-in21k"
 model = ViTForImageClassification.from_pretrained(base_model,
                                                   id2label=id2label,
-                                                  label2id=label2id)
+                                                  label2id=label2id,
+                                                  ignore_mismatched_sizes = True, # provide this in case you'd like to fine-tune an already fine-tuned checkpoint
+                                                  )
 
 train_ds = ds_splits['train']
 val_ds = ds_splits['valid']
 test_ds = ds_splits['test']
 
 # Image processor and transforms. The transforms may be replaced with albumentations
-processor = ViTImageProcessor.from_pretrained(base_model)
+processor = AutoImageProcessor.from_pretrained(base_model)
 
-from torchvision.transforms import (CenterCrop,
-                                    Compose,
-                                    Normalize,
-                                    RandomHorizontalFlip,
-                                    RandomResizedCrop,
-                                    Resize,
-                                    ToTensor)
 
 image_mean, image_std = processor.image_mean, processor.image_std
 size = processor.size["height"]
 
-# Mean and standard deviation for normalization
-image_mean = [0.485, 0.456, 0.406]  # Example values
-image_std = [0.229, 0.224, 0.225]   # Example values
-size = 224  # Example size
-
 # Training transforms
-_train_transforms = Compose(
+_train_transforms = A.Compose(
     [
-        RandomResizedCrop(height=size, width=size, scale=(0.08, 1.0), ratio=(3/4, 4/3)),
-        HorizontalFlip(p=0.5),
-        Rotate(limit=[0, 360], step=45, p=1.0),  # Rotate in 45-degree increments
-        Normalize(mean=image_mean, std=image_std),
-        ToTensorV2(),  # Converts to PyTorch tensor
+        A.RandomResizedCrop(height=size, width=size, scale=(0.2, 1.0), p=1.0),
+        A.GaussianBlur(blur_limit=(3, 7), sigma_limit=0.1, p=0.5), 
+        A.Rotate(limit=45, interpolation=1, border_mode=4, value=None, p=1),
+        A.Rotate(limit=90, interpolation=1, border_mode=4, value=None, p=1),
+        A.Rotate(limit=180, interpolation=1, border_mode=4, value=None, p=1),
+        A.Rotate(limit=270, interpolation=1, border_mode=4, value=None, p=1),
+        A.Normalize(mean=image_mean, std=image_std),
+        ToTensorV2(), 
     ]
 )
 
 # Validation transforms
-_val_transforms = Compose(
+_val_transforms = A.Compose(
     [
-        Resize(height=size, width=size),
-        CenterCrop(height=size, width=size),
-        Rotate(limit=[0, 360], step=45, p=1.0),  # Rotate in 45-degree increments
-        Normalize(mean=image_mean, std=image_std),
-        ToTensorV2(),  # Converts to PyTorch tensor
+        A.RandomResizedCrop(height=size, width=size, scale=(0.2, 1.0), p=1.0),
+        A.GaussianBlur(blur_limit=(3, 7), sigma_limit=0.1, p=0.5), 
+        A.Rotate(limit=45, interpolation=1, border_mode=4, value=None, p=1),
+        A.Rotate(limit=90, interpolation=1, border_mode=4, value=None, p=1),
+        A.Rotate(limit=180, interpolation=1, border_mode=4, value=None, p=1),
+        A.Rotate(limit=270, interpolation=1, border_mode=4, value=None, p=1),
+        A.Normalize(mean=image_mean, std=image_std),
+        ToTensorV2(), 
     ]
 )
 
+
 def train_transforms(examples):
-    examples['pixel_values'] = [_train_transforms(image.convert("RGB")) for image in examples['image']]
+    examples["pixel_values"] = [_train_transforms(image=np.array(i))["image"] for i in examples["image"]] 
     return examples
 
 def val_transforms(examples):
-    examples['pixel_values'] = [_val_transforms(image.convert("RGB")) for image in examples['image']]
+    examples["pixel_values"] = [_val_transforms(image=np.array(i))["image"] for i in examples["image"]] 
     return examples
+
 
 # Set the transforms
 train_ds.set_transform(train_transforms)
@@ -112,9 +102,7 @@ args = TrainingArguments(
     model_name,
     save_strategy="epoch",
     eval_strategy="epoch",
-    learning_rate=2e-5,
-    per_device_train_batch_size=50,
-    per_device_eval_batch_size=20,
+    learning_rate=1e-4,
     num_train_epochs=100,
     gradient_accumulation_steps=2,
     save_total_limit = 1,
@@ -123,6 +111,7 @@ args = TrainingArguments(
     metric_for_best_model="accuracy",
     logging_dir='logs',
     remove_unused_columns=False,
+    auto_find_batch_size=True,
 )
 
 def compute_metrics(eval_pred):
