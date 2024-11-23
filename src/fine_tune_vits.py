@@ -5,7 +5,16 @@
 import logging
 from datetime import datetime
 from pathlib import Path
-from torch.utils.data import DataLoader
+from albumentations import (
+    Compose,
+    Resize,
+    RandomResizedCrop,
+    HorizontalFlip,
+    Normalize,
+    CenterCrop,
+    Rotate
+)
+from albumentations.pytorch import ToTensorV2
 from sklearn.metrics import accuracy_score, precision_score, recall_score
 import seaborn as sns
 import numpy as np
@@ -59,24 +68,32 @@ from torchvision.transforms import (CenterCrop,
 image_mean, image_std = processor.image_mean, processor.image_std
 size = processor.size["height"]
 
-normalize = Normalize(mean=image_mean, std=image_std)
-_train_transforms = Compose(
-        [
-            RandomResizedCrop(size),
-            RandomHorizontalFlip(),
-            ToTensor(),
-            normalize,
-        ]
-    )
+# Mean and standard deviation for normalization
+image_mean = [0.485, 0.456, 0.406]  # Example values
+image_std = [0.229, 0.224, 0.225]   # Example values
+size = 224  # Example size
 
+# Training transforms
+_train_transforms = Compose(
+    [
+        RandomResizedCrop(height=size, width=size, scale=(0.08, 1.0), ratio=(3/4, 4/3)),
+        HorizontalFlip(p=0.5),
+        Rotate(limit=[0, 360], step=45, p=1.0),  # Rotate in 45-degree increments
+        Normalize(mean=image_mean, std=image_std),
+        ToTensorV2(),  # Converts to PyTorch tensor
+    ]
+)
+
+# Validation transforms
 _val_transforms = Compose(
-        [
-            Resize(size),
-            CenterCrop(size),
-            ToTensor(),
-            normalize,
-        ]
-    )
+    [
+        Resize(height=size, width=size),
+        CenterCrop(height=size, width=size),
+        Rotate(limit=[0, 360], step=45, p=1.0),  # Rotate in 45-degree increments
+        Normalize(mean=image_mean, std=image_std),
+        ToTensorV2(),  # Converts to PyTorch tensor
+    ]
+)
 
 def train_transforms(examples):
     examples['pixel_values'] = [_train_transforms(image.convert("RGB")) for image in examples['image']]
@@ -92,7 +109,7 @@ val_ds.set_transform(val_transforms)
 test_ds.set_transform(val_transforms)
 
 args = TrainingArguments(
-    f"{model_name}-finetuned",
+    model_name,
     save_strategy="epoch",
     eval_strategy="epoch",
     learning_rate=2e-5,

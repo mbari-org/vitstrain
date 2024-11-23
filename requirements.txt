@@ -6,3 +6,5 @@ torchvision==0.18.1
 transformers[torch]
 datasets
 seaborn
+albumentations
+accelerate
