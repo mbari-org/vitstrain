@@ -24,16 +24,16 @@ logger.addHandler(console)
 logger.setLevel(logging.DEBUG)
 
 # Name of the model you want to train
-model_name = 'mbari-uav-vit-b-16'
+model_name = 'i2MAP-vit-b-16'
 
 # The raw dataset and the place to store the filtered dataset
-raw_data = Path('/tmp/UAV/Baseline/')
-filter_data = Path('/tmp/UAV/Baseline_filter/')
+raw_data = [Path('/home/dcline/code/vittrain/data/i2map'), Path('/home/dcline/code/vittrain/data/i2mapbulk')]
+filter_data = Path('/home/dcline/code/vittrain/data/i2mapcombo/')
 # raw_data = Path('/tmp/catsdogs/catsdogstrain')
 # filter_data = Path('/tmp/catsdogs/catsdogstrain')
 
 # Create the dataset from the raw dataset(s)
-ds_splits, id2label, label2id = create_dataset(logger, [raw_data], filter_data)
+ds_splits, id2label, label2id = create_dataset(logger, raw_data, filter_data)
 
 # The id2label and label2id are used to convert the labels to and from the model's internal representation
 # These are stored in the HuggingFace config.json file with the model, e.g. mbari-uav-vit-b-16/config.json
@@ -62,6 +62,7 @@ _train_transforms = A.Compose(
         A.GaussianBlur(blur_limit=(3, 7), sigma_limit=0.1, p=0.5), 
         A.Rotate(limit=45, interpolation=1, border_mode=4, value=None, p=1),
         A.Rotate(limit=90, interpolation=1, border_mode=4, value=None, p=1),
+        A.Rotate(limit=135, interpolation=1, border_mode=4, value=None, p=1),
         A.Rotate(limit=180, interpolation=1, border_mode=4, value=None, p=1),
         A.Rotate(limit=270, interpolation=1, border_mode=4, value=None, p=1),
         A.Normalize(mean=image_mean, std=image_std),
@@ -74,10 +75,6 @@ _val_transforms = A.Compose(
     [
         A.RandomResizedCrop(height=size, width=size, scale=(0.2, 1.0), p=1.0),
         A.GaussianBlur(blur_limit=(3, 7), sigma_limit=0.1, p=0.5), 
-        A.Rotate(limit=45, interpolation=1, border_mode=4, value=None, p=1),
-        A.Rotate(limit=90, interpolation=1, border_mode=4, value=None, p=1),
-        A.Rotate(limit=180, interpolation=1, border_mode=4, value=None, p=1),
-        A.Rotate(limit=270, interpolation=1, border_mode=4, value=None, p=1),
         A.Normalize(mean=image_mean, std=image_std),
         ToTensorV2(), 
     ]
@@ -103,7 +100,7 @@ args = TrainingArguments(
     save_strategy="epoch",
     eval_strategy="epoch",
     learning_rate=1e-4,
-    num_train_epochs=100,
+    num_train_epochs=50,
     gradient_accumulation_steps=2,
     save_total_limit = 1,
     weight_decay=0.01,
@@ -163,7 +160,7 @@ plt.xlabel("Predicted")
 plt.ylabel("True")
 plt.title("Confusion Matrix")
 plt.suptitle(
-            f"CM {model_name} exemplars. Top-1 Accuracy: {accuracy:.2f},  "
+            f"CM {model_name}. Top-1 Accuracy: {accuracy:.2f},  "
                 f"Precision: {precision:.2f}, Recall: {recall:.2f}")
 d = f"{datetime.now():%Y-%m-%d %H%M%S}"
 plt.title(d)
