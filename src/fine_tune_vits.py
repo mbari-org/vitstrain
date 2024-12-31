@@ -7,7 +7,7 @@ from datetime import datetime
 from pathlib import Path
 import albumentations as A
 from albumentations.pytorch import ToTensorV2
-from sklearn.metrics import accuracy_score, precision_score, recall_score
+from sklearn.metrics import balanced_accuracy_score, precision_score, recall_score
 import seaborn as sns
 import numpy as np
 from transformers import TrainingArguments, Trainer
@@ -24,11 +24,12 @@ logger.addHandler(console)
 logger.setLevel(logging.DEBUG)
 
 # Name of the model you want to train
-model_name = 'i2MAP-vit-b-16'
+now = datetime.now()
+model_name = f'mbari-uav-vit-b-16-{now:%Y%m%d}'
 
 # The raw dataset and the place to store the filtered dataset
-raw_data = [Path('/home/dcline/code/vittrain/data/i2map'), Path('/home/dcline/code/vittrain/data/i2mapbulk')]
-filter_data = Path('/home/dcline/code/vittrain/data/i2mapcombo/')
+raw_data = Path('/tmp/UAV/Baseline/')
+filter_data = Path('/tmp/UAV/Baseline_filter/')
 # raw_data = Path('/tmp/catsdogs/catsdogstrain')
 # filter_data = Path('/tmp/catsdogs/catsdogstrain')
 
@@ -62,7 +63,6 @@ _train_transforms = A.Compose(
         A.GaussianBlur(blur_limit=(3, 7), sigma_limit=0.1, p=0.5), 
         A.Rotate(limit=45, interpolation=1, border_mode=4, value=None, p=1),
         A.Rotate(limit=90, interpolation=1, border_mode=4, value=None, p=1),
-        A.Rotate(limit=135, interpolation=1, border_mode=4, value=None, p=1),
         A.Rotate(limit=180, interpolation=1, border_mode=4, value=None, p=1),
         A.Rotate(limit=270, interpolation=1, border_mode=4, value=None, p=1),
         A.Normalize(mean=image_mean, std=image_std),
@@ -74,7 +74,7 @@ _train_transforms = A.Compose(
 _val_transforms = A.Compose(
     [
         A.RandomResizedCrop(height=size, width=size, scale=(0.2, 1.0), p=1.0),
-        A.GaussianBlur(blur_limit=(3, 7), sigma_limit=0.1, p=0.5), 
+        A.GaussianBlur(blur_limit=(3, 7), sigma_limit=0.1, p=0.5),
         A.Normalize(mean=image_mean, std=image_std),
         ToTensorV2(), 
     ]
@@ -114,7 +114,7 @@ args = TrainingArguments(
 def compute_metrics(eval_pred):
     predictions, labels = eval_pred
     predictions = np.argmax(predictions, axis=1)
-    return dict(accuracy=accuracy_score(predictions, labels))
+    return dict(accuracy=balanced_accuracy_score(predictions, labels))
 
 # HuggingFace Trainer
 trainer = Trainer(
@@ -142,7 +142,7 @@ outputs = trainer.predict(test_ds)
 y_true = outputs.label_ids
 y_pred = outputs.predictions.argmax(1)
 
-accuracy = accuracy_score(y_true, y_pred)
+accuracy = balanced_accuracy_score(y_true, y_pred)
 precision = precision_score(y_true, y_pred, average='micro')
 recall = recall_score(y_true, y_pred, average='micro')
 logger.info(f"Accuracy: {accuracy:.2f}, Precision: {precision:.2f}, Recall: {recall:.2f}")
@@ -160,7 +160,7 @@ plt.xlabel("Predicted")
 plt.ylabel("True")
 plt.title("Confusion Matrix")
 plt.suptitle(
-            f"CM {model_name}. Top-1 Accuracy: {accuracy:.2f},  "
+            f"CM {model_name}. Top-1 Balanced Accuracy: {accuracy:.2f},  "
                 f"Precision: {precision:.2f}, Recall: {recall:.2f}")
 d = f"{datetime.now():%Y-%m-%d %H%M%S}"
 plt.title(d)
@@ -168,3 +168,6 @@ plot_name = f"confusion_matrix_{model_name}_{d}.png"
 logger.info(f"Saving confusion matrix to {plot_name}")
 plt.savefig(plot_name)
 plt.close()
+
+# Push to the HuggingFace model hub
+# trainer.push_to_hub()

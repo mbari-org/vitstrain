@@ -41,15 +41,13 @@ def create_dataset(logger: Logger, raw_dataset_paths: List[Path], train_dataset_
                     combined_stats[k] = int(v)
 
 
-    # Randomly downsample the dataset to 2000 images per class and copy the images to a new directory
+    # Copy the images to a new directory
     for label, count in combined_stats.items():
         images = []
         for path in raw_dataset_paths:
             crop_path = path / 'crops' / str(label)
             images.extend(list(crop_path.glob('*.jpg')))
         logger.info(f"Found {len(images)} images for {label}")
-        if len(images) > 2000:
-            images = np.random.choice(images, 2000, replace=False)
         for image in tqdm.tqdm(images, desc=f"Copying images for {label}"):
             dest = train_dataset_root / str(label) / image.name
             dest.parent.mkdir(parents=True, exist_ok=True)
