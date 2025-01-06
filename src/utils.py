@@ -19,6 +19,29 @@ def collate_fn(examples):
     return {"pixel_values": pixel_values, "labels": labels}
 
 
+def compute_mean_std(dataset):
+    from PIL import ImageStat, Image
+    ds_mean = dataset.map(lambda x: {
+                         "mean": ImageStat.Stat(x["image"]).mean},
+                         remove_columns=dataset.column_names,
+                         num_proc=16)
+    ds_std = dataset.map(lambda x: {
+                         "stddev": ImageStat.Stat(x["image"]).stddev},
+                         remove_columns=dataset.column_names,
+                         num_proc=16)
+
+    avg_mean = np.zeros(3)
+    avg_std = np.zeros(3)
+
+    total = len(ds_mean)
+    for i in range(total):
+        avg_mean += np.array(ds_mean[i]["mean"])
+        avg_std += np.array(ds_std[i]["stddev"])
+
+    avg_mean /= total
+    avg_std /= total
+    return list(avg_mean), list(avg_std)
+
 def create_dataset(logger: Logger, raw_dataset_paths: List[Path], train_dataset_root: Path):
     if train_dataset_root.exists():
         logger.info(f"Removing existing dataset at {train_dataset_root}")
@@ -71,4 +94,14 @@ def create_dataset(logger: Logger, raw_dataset_paths: List[Path], train_dataset_
     label2id = {label:id for id,label in id2label.items()}
     logger.info(label2id)
     logger.info(id2label)
-    return ds_splits, id2label, label2id
+
+    # Compute the mean and std of the training dataset
+    mean, std = compute_mean_std(ds_splits["train"])
+
+    logger.info(f'Number of training samples: {len(ds_splits["train"])}')
+    logger.info(f'Number of validation samples: {len(ds_splits["valid"])}')
+    logger.info(f'Number of test samples: {len(ds_splits["test"])}')
+    logger.info(f'Mean: {mean}')
+    logger.info(f'Std: {std}')
+
+    return ds_splits, id2label, label2id, mean, std

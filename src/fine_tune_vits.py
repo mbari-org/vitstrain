@@ -10,6 +10,9 @@ from albumentations.pytorch import ToTensorV2
 from sklearn.metrics import balanced_accuracy_score, precision_score, recall_score
 import seaborn as sns
 import numpy as np
+import torch
+import torch.nn as nn
+import torch.nn.functional as F
 from transformers import TrainingArguments, Trainer
 from transformers import  ViTForImageClassification,AutoImageProcessor 
 from sklearn.metrics import confusion_matrix, ConfusionMatrixDisplay
@@ -28,13 +31,15 @@ now = datetime.now()
 model_name = f'mbari-uav-vit-b-16-{now:%Y%m%d}'
 
 # The raw dataset and the place to store the filtered dataset
-raw_data = Path('/tmp/UAV/Baseline/')
-filter_data = Path('/tmp/UAV/Baseline_filter/')
-# raw_data = Path('/tmp/catsdogs/catsdogstrain')
-# filter_data = Path('/tmp/catsdogs/catsdogstrain')
+# Dataset assumed to be the base directory called "crops" with subdirectories per class
+# e.g. /tmp/UAV/Baseline/crops/Class1, /tmp/UAV/Baseline/crops/Class2, etc.
+# raw_data = Path('/tmp/UAV/Baseline/')
+# filter_data = Path('/tmp/UAV/Baseline_filter/')
+raw_data = [Path(__file__).parent.parent / 'data'] # raw_data is a list of paths
+filter_data = Path(__file__).parent.parent / 'data_filter'
 
 # Create the dataset from the raw dataset(s)
-ds_splits, id2label, label2id = create_dataset(logger, raw_data, filter_data)
+ds_splits, id2label, label2id, image_mean, image_std = create_dataset(logger, raw_data, filter_data)
 
 # The id2label and label2id are used to convert the labels to and from the model's internal representation
 # These are stored in the HuggingFace config.json file with the model, e.g. mbari-uav-vit-b-16/config.json
@@ -42,18 +47,15 @@ base_model = "google/vit-base-patch16-224-in21k"
 model = ViTForImageClassification.from_pretrained(base_model,
                                                   id2label=id2label,
                                                   label2id=label2id,
-                                                  ignore_mismatched_sizes = True, # provide this in case you'd like to fine-tune an already fine-tuned checkpoint
+                                                  ignore_mismatched_sizes=True, # provide this in case you'd like to fine-tune an already fine-tuned checkpoint
                                                   )
 
 train_ds = ds_splits['train']
 val_ds = ds_splits['valid']
 test_ds = ds_splits['test']
 
-# Image processor and transforms. The transforms may be replaced with albumentations
+# Image processor and transforms
 processor = AutoImageProcessor.from_pretrained(base_model)
-
-
-image_mean, image_std = processor.image_mean, processor.image_std
 size = processor.size["height"]
 
 # Training transforms
@@ -80,6 +82,38 @@ _val_transforms = A.Compose(
     ]
 )
 
+# Custom Focal Loss to handle class imbalance
+class FocalLoss(nn.Module):
+    def __init__(self, alpha=0.25, gamma=2, reduction='mean'):
+        super(FocalLoss, self).__init__()
+        self.alpha = alpha
+        self.gamma = gamma
+        self.reduction = reduction
+
+    def forward(self, inputs, targets):
+        BCE_loss = F.cross_entropy(inputs, targets, reduction='none')
+        pt = torch.exp(-BCE_loss)
+        focal_loss = self.alpha * (1 - pt) ** self.gamma * BCE_loss
+
+        if self.reduction == 'mean':
+            return focal_loss.mean()
+        elif self.reduction == 'sum':
+            return focal_loss.sum()
+        else:
+            return focal_loss
+
+class CustomTrainer(Trainer):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.focal_loss = FocalLoss()
+
+    def compute_loss(self, model, inputs, return_outputs=False):
+        labels = inputs.pop("labels")
+        outputs = model(**inputs)
+        logits = outputs.logits
+
+        loss = self.focal_loss.forward(logits, labels)
+        return (loss, outputs) if return_outputs else loss
 
 def train_transforms(examples):
     examples["pixel_values"] = [_train_transforms(image=np.array(i))["image"] for i in examples["image"]] 
@@ -108,7 +142,7 @@ args = TrainingArguments(
     metric_for_best_model="accuracy",
     logging_dir='logs',
     remove_unused_columns=False,
-    auto_find_batch_size=True,
+    auto_find_batch_size=True
 )
 
 def compute_metrics(eval_pred):
@@ -117,9 +151,9 @@ def compute_metrics(eval_pred):
     return dict(accuracy=balanced_accuracy_score(predictions, labels))
 
 # HuggingFace Trainer
-trainer = Trainer(
-    model,
-    args,
+trainer = CustomTrainer(
+    model=model,
+    args=args,
     train_dataset=train_ds,
     eval_dataset=val_ds,
     data_collator=collate_fn,
