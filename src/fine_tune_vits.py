@@ -7,6 +7,7 @@ from datetime import datetime
 from pathlib import Path
 import albumentations as A
 from albumentations.pytorch import ToTensorV2
+import json
 from sklearn.metrics import balanced_accuracy_score, precision_score, recall_score
 import seaborn as sns
 import numpy as np
@@ -14,7 +15,7 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 from transformers import TrainingArguments, Trainer
-from transformers import  ViTForImageClassification,AutoImageProcessor 
+from transformers import  ViTForImageClassification,AutoImageProcessor,TrainerCallback
 from sklearn.metrics import confusion_matrix, ConfusionMatrixDisplay
 from utils import collate_fn, create_dataset
 import matplotlib.pyplot as plt
@@ -29,6 +30,9 @@ logger.setLevel(logging.DEBUG)
 # Name of the model you want to train
 now = datetime.now()
 model_name = f'catsdogs-vit-b-16-{now:%Y%m%d}'
+
+# Name of the loss history file
+loss_history_file = f'loss_history_catsdogs-vit-b-16.json'
 
 # The raw dataset and the place to store the filtered dataset
 # Dataset assumed to be the base directory called "crops" with subdirectories per class
@@ -123,6 +127,35 @@ def val_transforms(examples):
     examples["pixel_values"] = [_val_transforms(image=np.array(i))["image"] for i in examples["image"]] 
     return examples
 
+class LossLoggerCallback(TrainerCallback):
+    def __init__(self, save_path="loss_history.json"):
+        self.loss_history = {"train_loss": [], "eval_loss": []}
+        self.save_path = save_path
+        self._load_history()
+
+    def _load_history(self):
+        """Load existing loss history from a file if it exists."""
+        try:
+            with open(self.save_path, "r") as f:
+                self.loss_history = json.load(f)
+        except FileNotFoundError:
+            self.loss_history = {"train_loss": [], "eval_loss": []}
+        except json.JSONDecodeError:
+            logger.warning(f"Error loading loss history from {self.save_path}")
+            self.loss_history = {"train_loss": [], "eval_loss": []}
+
+    def _save_history(self):
+        """Save the current loss history to a file."""
+        with open(self.save_path, "w") as f:
+            json.dump(self.loss_history, f)
+
+    def on_log(self, args, state, control, logs=None, **kwargs):
+        if logs:
+            if "loss" in logs:
+                self.loss_history["train_loss"].append(logs["loss"])
+            if "eval_loss" in logs:
+                self.loss_history["eval_loss"].append(logs["eval_loss"])
+            self._save_history()
 
 # Set the transforms
 train_ds.set_transform(train_transforms)
@@ -141,6 +174,7 @@ args = TrainingArguments(
     load_best_model_at_end=True,
     metric_for_best_model="accuracy",
     logging_dir='logs',
+    logging_steps=10,  # Log every 10 steps
     remove_unused_columns=False,
     auto_find_batch_size=True
 )
@@ -149,6 +183,8 @@ def compute_metrics(eval_pred):
     predictions, labels = eval_pred
     predictions = np.argmax(predictions, axis=1)
     return dict(accuracy=balanced_accuracy_score(predictions, labels))
+
+loss_logger = LossLoggerCallback(save_path=loss_history_file)
 
 # HuggingFace Trainer
 trainer = CustomTrainer(
@@ -159,7 +195,10 @@ trainer = CustomTrainer(
     data_collator=collate_fn,
     compute_metrics=compute_metrics,
     tokenizer=processor,
+    callbacks=[loss_logger],
 )
+
+trainer.add_callback(loss_logger)
 
 # Train the model and save it. This will save the model to a directory of the same name
 # If checkpoints exist, load the best model from the checkpoint
@@ -201,6 +240,23 @@ plt.title(d)
 plot_name = f"confusion_matrix_{model_name}_{d}.png"
 logger.info(f"Saving confusion matrix to {plot_name}")
 plt.savefig(plot_name)
+plt.close()
+
+# Plot the loss curves
+plt.figure(figsize=(10, 6))
+plt.plot(loss_logger.loss_history["train_loss"], label="Training Loss", color="blue")
+if loss_logger.loss_history["eval_loss"]:
+    eval_steps = list(range(0, len(loss_logger.loss_history["train_loss"]),
+                            len(loss_logger.loss_history["train_loss"]) // len(loss_logger.loss_history["eval_loss"])))
+    plt.plot(eval_steps, loss_logger.loss_history["eval_loss"], label="Validation Loss", color="orange")
+
+plt.xlabel("Steps")
+plt.ylabel("Loss")
+plt.title(f"Loss Curves for {model_name}")
+plt.legend()
+loss_curve_path = f"loss_curve_{model_name}_{datetime.now():%Y-%m-%d_%H%M%S}.png"
+plt.savefig(loss_curve_path)
+logger.info(f"Loss curve saved to {loss_curve_path}")
 plt.close()
 
 # Push to the HuggingFace model hub
