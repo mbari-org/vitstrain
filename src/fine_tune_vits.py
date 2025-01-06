@@ -28,7 +28,7 @@ logger.setLevel(logging.DEBUG)
 
 # Name of the model you want to train
 now = datetime.now()
-model_name = f'mbari-uav-vit-b-16-{now:%Y%m%d}'
+model_name = f'catsdogs-vit-b-16-{now:%Y%m%d}'
 
 # The raw dataset and the place to store the filtered dataset
 # Dataset assumed to be the base directory called "crops" with subdirectories per class
@@ -134,7 +134,7 @@ args = TrainingArguments(
     save_strategy="epoch",
     eval_strategy="epoch",
     learning_rate=1e-4,
-    num_train_epochs=50,
+    num_train_epochs=4,
     gradient_accumulation_steps=2,
     save_total_limit = 1,
     weight_decay=0.01,

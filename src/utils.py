@@ -40,6 +40,10 @@ def compute_mean_std(dataset):
 
     avg_mean /= total
     avg_std /= total
+
+    # Normalize to 0-1 to match the range in the Transformer processor output
+    avg_mean /= 255
+    avg_std /= 255
     return list(avg_mean), list(avg_std)
 
 def create_dataset(logger: Logger, raw_dataset_paths: List[Path], train_dataset_root: Path):
