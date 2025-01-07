@@ -61,6 +61,8 @@ test_ds = ds_splits['test']
 # Image processor and transforms
 processor = AutoImageProcessor.from_pretrained(base_model, use_fast=True)
 size = processor.size["height"]
+processor.image_mean = image_mean
+processor.image_std = image_std
 
 # Training transforms
 _train_transforms = A.Compose(
