@@ -59,7 +59,7 @@ val_ds = ds_splits['valid']
 test_ds = ds_splits['test']
 
 # Image processor and transforms
-processor = AutoImageProcessor.from_pretrained(base_model)
+processor = AutoImageProcessor.from_pretrained(base_model, use_fast=True)
 size = processor.size["height"]
 
 # Training transforms
