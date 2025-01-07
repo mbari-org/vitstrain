@@ -250,6 +250,7 @@ plt.plot(loss_logger.loss_history["train_loss"], label="Training Loss", color="b
 if loss_logger.loss_history["eval_loss"]:
     eval_steps = list(range(0, len(loss_logger.loss_history["train_loss"]),
                             len(loss_logger.loss_history["train_loss"]) // len(loss_logger.loss_history["eval_loss"])))
+    eval_steps = eval_steps[:len(loss_logger.loss_history["eval_loss"])]
     plt.plot(eval_steps, loss_logger.loss_history["eval_loss"], label="Validation Loss", color="orange")
 
 plt.xlabel("Steps")
