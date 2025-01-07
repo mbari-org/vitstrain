@@ -3,8 +3,10 @@ tqdm
 scikit-learn
 torch==2.3.1
 torchvision==0.18.1
-transformers[torch]
-datasets
-seaborn
-albumentations
-accelerate
+tqdm==4.67.1
+transformers==4.45.2
+typing_extensions==4.12.2
+tzdata==2024.2
+urllib3==2.3.0
+xxhash==3.5.0
+yarl==1.18.3
