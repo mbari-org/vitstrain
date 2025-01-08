@@ -223,7 +223,7 @@ def compute_metrics(eval_pred):
     return dict(accuracy=balanced_accuracy_score(predictions, labels))
 
 loss_logger = LossLoggerCallback(save_path=loss_history_file)
-early_stopping = EarlyStoppingCallback(early_stopping_patience=3)
+early_stopping = EarlyStoppingCallback(early_stopping_patience=2)
 
 # HuggingFace Trainer
 trainer = CustomTrainer(
