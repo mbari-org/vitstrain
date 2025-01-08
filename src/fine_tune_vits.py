@@ -27,6 +27,9 @@ console = logging.StreamHandler()
 logger.addHandler(console)
 logger.setLevel(logging.DEBUG)
 
+# Set to true to truncate the long-tail classes - this will remove classes with fewer than 50 examples
+remove_long_tail = True
+
 # Name of the model you want to train
 now = datetime.now()
 model_name = f'catsdogs-vit-b-16-{now:%Y%m%d}'
@@ -43,7 +46,7 @@ raw_data = [Path(__file__).parent.parent / 'data'] # raw_data is a list of paths
 filter_data = Path(__file__).parent.parent / 'data_filter'
 
 # Create the dataset from the raw dataset(s)
-ds_splits, id2label, label2id, image_mean, image_std = create_dataset(logger, raw_data, filter_data)
+ds_splits, id2label, label2id, image_mean, image_std = create_dataset(logger, remove_long_tail, raw_data, filter_data)
 
 # The id2label and label2id are used to convert the labels to and from the model's internal representation
 # These are stored in the HuggingFace config.json file with the model, e.g. mbari-uav-vit-b-16/config.json
@@ -68,8 +71,7 @@ processor.image_std = image_std
 _train_transforms = A.Compose(
     [
         A.RandomResizedCrop(height=size, width=size, scale=(0.2, 1.0), p=1.0),
-        A.GaussianBlur(blur_limit=(3, 7), sigma_limit=0.1, p=0.5), 
-        A.Rotate(limit=45, interpolation=1, border_mode=4, value=None, p=1),
+        A.GaussianBlur(blur_limit=(3, 7), sigma_limit=0.1, p=0.5),
         A.Rotate(limit=90, interpolation=1, border_mode=4, value=None, p=1),
         A.Rotate(limit=180, interpolation=1, border_mode=4, value=None, p=1),
         A.Rotate(limit=270, interpolation=1, border_mode=4, value=None, p=1),
@@ -169,7 +171,7 @@ args = TrainingArguments(
     save_strategy="epoch",
     eval_strategy="epoch",
     learning_rate=1e-4,
-    num_train_epochs=4,
+    num_train_epochs=2,
     gradient_accumulation_steps=2,
     save_total_limit = 1,
     weight_decay=0.01,

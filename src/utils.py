@@ -46,7 +46,7 @@ def compute_mean_std(dataset):
     avg_std /= 255
     return list(avg_mean), list(avg_std)
 
-def create_dataset(logger: Logger, raw_dataset_paths: List[Path], train_dataset_root: Path):
+def create_dataset(logger: Logger, remove_long_tail:bool, raw_dataset_paths: List[Path], train_dataset_root: Path):
     if train_dataset_root.exists():
         logger.info(f"Removing existing dataset at {train_dataset_root}")
         shutil.rmtree(train_dataset_root)
@@ -67,7 +67,6 @@ def create_dataset(logger: Logger, raw_dataset_paths: List[Path], train_dataset_
                 else:
                     combined_stats[k] = int(v)
 
-
     # Copy the images to a new directory
     for label, count in combined_stats.items():
         images = []
@@ -79,6 +78,21 @@ def create_dataset(logger: Logger, raw_dataset_paths: List[Path], train_dataset_
             dest = train_dataset_root / str(label) / image.name
             dest.parent.mkdir(parents=True, exist_ok=True)
             shutil.copy(image, dest)
+
+    if remove_long_tail:
+        # This is to avoid overfitting on labels with very few examples
+        # Count the number of images in each label
+        revised_stats = {}
+        for d in train_dataset_root.iterdir():
+            if d.is_dir():
+                count = len(list(d.glob('*')))
+                if count < 50:
+                    logger.info(f"Removing label {d.name} with {count} images")
+                    shutil.rmtree(d)
+                else:
+                    logger.info(f"Keeping label {d.name} with {count} images")
+                    revised_stats[d.name] = count
+        combined_stats = revised_stats
 
     # Load the dataset
     ds = load_dataset(train_dataset_root.as_posix())
