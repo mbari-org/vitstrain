@@ -17,6 +17,7 @@ import torch.nn.functional as F
 from transformers import TrainingArguments, Trainer
 from transformers import  ViTForImageClassification,AutoImageProcessor,TrainerCallback,EarlyStoppingCallback
 from sklearn.metrics import confusion_matrix, ConfusionMatrixDisplay
+
 from utils import collate_fn, create_dataset
 import matplotlib.pyplot as plt
 
@@ -89,40 +90,6 @@ _val_transforms = A.Compose(
         ToTensorV2(), 
     ]
 )
-
-class EarlyStopping:
-    def __init__(self, patience=5, delta=0, restore_best_weights=True, verbose=False):
-        self.patience = patience
-        self.delta = delta
-        self.restore_best_weights = restore_best_weights
-        self.verbose = verbose
-        self.counter = 0
-        self.best_score = None
-        self.early_stop = False
-        self.best_model_weights = None
-
-    def __call__(self, val_loss, model):
-        score = -val_loss  # Use negative loss because smaller loss is better
-
-        if self.best_score is None:
-            self.best_score = score
-            if self.restore_best_weights:
-                self.best_model_weights = model.state_dict()
-        elif score < self.best_score + self.delta:
-            self.counter += 1
-            if self.verbose:
-                logger.info(f"EarlyStopping counter: {self.counter}/{self.patience}")
-            if self.counter >= self.patience:
-                self.early_stop = True
-        else:
-            self.best_score = score
-            self.counter = 0
-            if self.restore_best_weights:
-                self.best_model_weights = model.state_dict()
-
-    def restore_weights(self, model):
-        if self.restore_best_weights and self.best_model_weights is not None:
-            model.load_state_dict(self.best_model_weights)
 
 # Custom Focal Loss to handle class imbalance
 class FocalLoss(nn.Module):
@@ -276,9 +243,9 @@ plt.suptitle(
                 f"Precision: {precision:.2f}, Recall: {recall:.2f}")
 d = f"{datetime.now():%Y-%m-%d %H%M%S}"
 plt.title(d)
-plot_name = f"confusion_matrix_{model_name}_{d}.png"
-logger.info(f"Saving confusion matrix to {plot_name}")
-plt.savefig(plot_name)
+plot_path = Path(model_name) / f"confusion_matrix_{model_name}_{d}.png"
+logger.info(f"Saving confusion matrix to {plot_path.name}")
+plt.savefig(plot_path.as_posix())
 plt.close()
 
 # Plot the loss curves
@@ -294,9 +261,9 @@ plt.xlabel("Steps")
 plt.ylabel("Loss")
 plt.title(f"Loss Curves for {model_name}")
 plt.legend()
-loss_curve_path = f"loss_curve_{model_name}_{datetime.now():%Y-%m-%d_%H%M%S}.png"
-plt.savefig(loss_curve_path)
-logger.info(f"Loss curve saved to {loss_curve_path}")
+loss_curve_path = Path(model_name) / f"loss_curve_{model_name}_{datetime.now():%Y-%m-%d_%H%M%S}.png"
+plt.savefig(loss_curve_path.as_posix())
+logger.info(f"Loss curve saved to {loss_curve_path.name}")
 plt.close()
 
 # Push to the HuggingFace model hub
