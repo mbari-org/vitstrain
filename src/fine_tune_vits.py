@@ -130,6 +130,8 @@ def main():
     # Image processor and transforms
     processor = AutoImageProcessor.from_pretrained(base_model, use_fast=True)
     size = processor.size["height"]
+    processor.image_mean = image_mean
+    processor.image_std = image_std
 
     # Training transforms
     if add_rotations:
