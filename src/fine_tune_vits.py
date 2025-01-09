@@ -53,7 +53,7 @@ def parse_args():
         type=str,
         nargs="+",
         required=False,
-        default=str(Path(__file__).parent.parent / "data"),
+        default=[str(Path(__file__).parent.parent / "data")],
         help="Paths to the raw dataset (space-separated if multiple paths).",
     )
     parser.add_argument(
@@ -85,7 +85,7 @@ def main():
     add_rotations = args.add_rotations
     model_name = args.model_name
     base_model = args.base_model
-    raw_data = [Path(path) for path in args.raw_data.split()]
+    raw_data = [Path(path) for path in args.raw_data]
     filter_data = Path(args.filter_data)
     num_epochs = args.num_epochs
 
