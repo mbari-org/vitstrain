@@ -38,6 +38,28 @@ python src/fine_tune_vit.py \
         --epochs 30
 ```
 
+Example output:
+```text
+/Volumes/DeepSea-AI/models/UAV/mbari-uav-vit-b-16-20250108/
+├── all_results.json
+├── checkpoint-1710
+│   ├── config.json
+│   ├── model.safetensors
+│   ├── optimizer.pt
+│   ├── preprocessor_config.json
+│   ├── rng_state.pth
+│   ├── scheduler.pt
+│   ├── trainer_state.json
+│   └── training_args.bin
+├── config.json
+├── confusion_matrix_mbari-uav-vit-b-16-20250108_2025-01-08 073852.png
+├── eval_results.json
+├── loss_curve_mbari-uav-vit-b-16-20250108_2025-01-08_073852.png
+├── model.safetensors
+├── preprocessor_config.json
+└── training_args.bin
+```
+
 ![docs/imgs/confusion_matrix.png](./docs/imgs/confusion_matrix.png)
 ![docs/imgs/loss_curve.png](./docs/imgs/loss_curve.png)
 
