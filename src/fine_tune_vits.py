@@ -62,6 +62,12 @@ def parse_args():
         default=str(Path(__file__).parent.parent / "data_filter"),
         help="Path to store the filtered dataset.",
     )
+    parser.add_argument(
+        "--num-epochs",
+        type=int,
+        default=4,
+        help="Number of epochs to train the model.",
+    )
     return parser.parse_args()
 
 # Main function
@@ -74,6 +80,7 @@ def main():
     base_model = args.base_model
     raw_data = [Path(path) for path in args.raw_data.split()]
     filter_data = Path(args.filter_data)
+    num_epochs = args.num_epochs
 
     # Append timestamp to the model name
     now = datetime.now()
@@ -83,6 +90,7 @@ def main():
     loss_history_file = f"loss_history_{model_name}.json"
 
     # Log configuration
+    logger.info(f"Number of epochs: {num_epochs}")
     logger.info(f"Remove long-tail classes: {remove_long_tail}")
     logger.info(f"Model name: {model_name}")
     logger.info(f"Base model: {base_model}")
@@ -219,7 +227,7 @@ def main():
         save_strategy="epoch",
         eval_strategy="epoch",
         learning_rate=5e-5,
-        num_train_epochs=4,
+        num_train_epochs=num_epochs,
         warmup_ratio=0.1,
         gradient_accumulation_steps=4,
         save_total_limit=1,
