@@ -85,7 +85,7 @@ def create_dataset(logger: Logger, remove_long_tail:bool, raw_dataset_paths: Lis
 
     if remove_long_tail:
         # This is to avoid overfitting on labels with very few examples
-        # Count the number of images in each label
+        # Count the number of images in each label and remove labels with less than 10 images
         revised_stats = {}
         for d in train_dataset_root.iterdir():
             if d.is_dir():
