@@ -68,6 +68,12 @@ def parse_args():
         default=4,
         help="Number of epochs to train the model.",
     )
+    parser.add_argument(
+        "--add-rotations",
+        type=bool,
+        default=True,
+        help="Set to true to add 90, 180, 270 rotations to the training images.",
+    )
     return parser.parse_args()
 
 # Main function
@@ -76,6 +82,7 @@ def main():
 
     # Command-line argument values
     remove_long_tail = args.remove_long_tail
+    add_rotations = args.add_rotations
     model_name = args.model_name
     base_model = args.base_model
     raw_data = [Path(path) for path in args.raw_data.split()]
@@ -91,7 +98,9 @@ def main():
 
     # Log configuration
     logger.info(f"Number of epochs: {num_epochs}")
+
     logger.info(f"Remove long-tail classes: {remove_long_tail}")
+    logger.info(f"Add rotations: {add_rotations}")
     logger.info(f"Model name: {model_name}")
     logger.info(f"Base model: {base_model}")
     logger.info(f"Raw data paths: {[p.as_posix() for p in raw_data]}")
@@ -123,14 +132,27 @@ def main():
     size = processor.size["height"]
 
     # Training transforms
-    _train_transforms = A.Compose(
-        [
-            A.RandomResizedCrop(height=size, width=size, scale=(0.2, 1.0), p=1.0),
-            A.GaussianBlur(blur_limit=(3, 7), sigma_limit=0.1, p=0.5),
-            A.Normalize(mean=image_mean, std=image_std),
-            ToTensorV2(),
-        ]
-    )
+    if add_rotations:
+        _train_transforms = A.Compose(
+            [
+                A.RandomResizedCrop(height=size, width=size, scale=(0.2, 1.0), p=1.0),
+                A.Rotate(limit=90, interpolation=1, border_mode=4, value=None, p=1),
+                A.Rotate(limit=180, interpolation=1, border_mode=4, value=None, p=1),
+                A.Rotate(limit=270, interpolation=1, border_mode=4, value=None, p=1),
+                A.GaussianBlur(blur_limit=(3, 7), sigma_limit=0.1, p=0.5),
+                A.Normalize(mean=image_mean, std=image_std),
+                ToTensorV2(),
+            ]
+        )
+    else:
+        _train_transforms = A.Compose(
+            [
+                A.RandomResizedCrop(height=size, width=size, scale=(0.2, 1.0), p=1.0),
+                A.GaussianBlur(blur_limit=(3, 7), sigma_limit=0.1, p=0.5),
+                A.Normalize(mean=image_mean, std=image_std),
+                ToTensorV2(),
+            ]
+        )
 
     # Validation transforms
     _val_transforms = A.Compose(
