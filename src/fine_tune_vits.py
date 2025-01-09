@@ -183,7 +183,7 @@ args = TrainingArguments(
 def compute_metrics(eval_pred):
     predictions, labels = eval_pred
     predictions = np.argmax(predictions, axis=1)
-    return dict(accuracy=balanced_accuracy_score(predictions, labels))
+    return dict(accuracy=accuracy_score(predictions, labels))
 
 
 loss_logger = LossLoggerCallback(save_path=loss_history_file)
