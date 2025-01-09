@@ -8,14 +8,14 @@ from pathlib import Path
 import albumentations as A
 from albumentations.pytorch import ToTensorV2
 import json
-from sklearn.metrics import balanced_accuracy_score, precision_score, recall_score
+from sklearn.metrics import accuracy_score, balanced_accuracy_score, precision_score, recall_score
 import seaborn as sns
 import numpy as np
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
 from transformers import TrainingArguments, Trainer
-from transformers import  ViTForImageClassification,AutoImageProcessor,TrainerCallback,EarlyStoppingCallback
+from transformers import  AutoModelForImageClassification,ViTForImageClassification,AutoImageProcessor,TrainerCallback,EarlyStoppingCallback
 from sklearn.metrics import confusion_matrix, ConfusionMatrixDisplay
 
 from utils import collate_fn, create_dataset
@@ -28,15 +28,15 @@ console = logging.StreamHandler()
 logger.addHandler(console)
 logger.setLevel(logging.DEBUG)
 
-# Set to true to truncate the long-tail classes - this will remove classes with fewer than 50 examples
+# Set to true to truncate the long-tail classes
 remove_long_tail = True
 
 # Name of the model you want to train
 now = datetime.now()
 model_name = f'catsdogs-vit-b-16-{now:%Y%m%d}'
 
-# Name of the loss history file
-loss_history_file = f'loss_history_catsdogs-vit-b-16.json'
+# Name of the loss history file which should be aligned with the model
+loss_history_file = f'loss_history_{model_name}.json'
 
 # The raw dataset and the place to store the filtered dataset
 # Dataset assumed to be the base directory called "crops" with subdirectories per class
@@ -51,11 +51,12 @@ ds_splits, id2label, label2id, image_mean, image_std = create_dataset(logger, re
 
 # The id2label and label2id are used to convert the labels to and from the model's internal representation
 # These are stored in the HuggingFace config.json file with the model, e.g. mbari-uav-vit-b-16/config.json
-base_model = "google/vit-base-patch16-224-in21k"
-model = ViTForImageClassification.from_pretrained(base_model,
+base_model = "google/vit-base-patch16-224"
+model = AutoModelForImageClassification.from_pretrained(base_model,
+                                                  num_labels=len(label2id.keys()),
                                                   id2label=id2label,
                                                   label2id=label2id,
-                                                  ignore_mismatched_sizes=True, # provide this in case you'd like to fine-tune an already fine-tuned checkpoint
+                                                  ignore_mismatched_sizes=True,
                                                   )
 
 train_ds = ds_splits['train']
@@ -65,17 +66,12 @@ test_ds = ds_splits['test']
 # Image processor and transforms
 processor = AutoImageProcessor.from_pretrained(base_model, use_fast=True)
 size = processor.size["height"]
-processor.image_mean = image_mean
-processor.image_std = image_std
 
 # Training transforms
 _train_transforms = A.Compose(
     [
         A.RandomResizedCrop(height=size, width=size, scale=(0.2, 1.0), p=1.0),
         A.GaussianBlur(blur_limit=(3, 7), sigma_limit=0.1, p=0.5),
-        A.Rotate(limit=90, interpolation=1, border_mode=4, value=None, p=1),
-        A.Rotate(limit=180, interpolation=1, border_mode=4, value=None, p=1),
-        A.Rotate(limit=270, interpolation=1, border_mode=4, value=None, p=1),
         A.Normalize(mean=image_mean, std=image_std),
         ToTensorV2(), 
     ]
@@ -85,7 +81,6 @@ _train_transforms = A.Compose(
 _val_transforms = A.Compose(
     [
         A.RandomResizedCrop(height=size, width=size, scale=(0.2, 1.0), p=1.0),
-        A.GaussianBlur(blur_limit=(3, 7), sigma_limit=0.1, p=0.5),
         A.Normalize(mean=image_mean, std=image_std),
         ToTensorV2(), 
     ]
@@ -171,28 +166,29 @@ args = TrainingArguments(
     model_name,
     save_strategy="epoch",
     eval_strategy="epoch",
-    learning_rate=1e-4,
-    num_train_epochs=2,
-    gradient_accumulation_steps=2,
+    learning_rate=5e-5,
+    num_train_epochs=4,
+    warmup_ratio=0.1,
+    gradient_accumulation_steps=4,
     save_total_limit = 1,
-    weight_decay=0.01,
     load_best_model_at_end=True,
     metric_for_best_model="accuracy",
     logging_dir='logs',
     logging_steps=10,  # Log every 10 steps
     remove_unused_columns=False,
-    auto_find_batch_size=True
+    auto_find_batch_size=True,
 )
+
 
 def compute_metrics(eval_pred):
     predictions, labels = eval_pred
     predictions = np.argmax(predictions, axis=1)
     return dict(accuracy=balanced_accuracy_score(predictions, labels))
 
+
 loss_logger = LossLoggerCallback(save_path=loss_history_file)
 early_stopping = EarlyStoppingCallback(early_stopping_patience=2)
 
-# HuggingFace Trainer
 trainer = CustomTrainer(
     model=model,
     args=args,
@@ -204,8 +200,6 @@ trainer = CustomTrainer(
     callbacks=[loss_logger,early_stopping],
 )
 
-trainer.add_callback(loss_logger)
-
 # Train the model and save it. This will save the model to a directory of the same name
 # If checkpoints exist, load the best model from the checkpoint
 if Path(model_name).exists() and len(list(Path(model_name).rglob('*.safetensors'))) > 0:
@@ -214,10 +208,14 @@ else:
     trainer.train()
 trainer.save_model(model_name)
 
-# Run predictions on the test set. More work needed here to save the confusion matrix and other metrics
-# This will output a confusion matrix in the blue color map with only index labels
+# Run predictions on the test and val datasets
 outputs = trainer.predict(test_ds)
 
+metrics = trainer.evaluate(val_ds)
+trainer.log_metrics("eval", metrics)
+trainer.save_metrics("eval", metrics)
+
+# Output other metrics and confusion matrix 
 y_true = outputs.label_ids
 y_pred = outputs.predictions.argmax(1)
 
@@ -241,30 +239,29 @@ plt.title("Confusion Matrix")
 plt.suptitle(
             f"CM {model_name}. Top-1 Balanced Accuracy: {accuracy:.2f},  "
                 f"Precision: {precision:.2f}, Recall: {recall:.2f}")
-d = f"{datetime.now():%Y-%m-%d %H%M%S}"
+d = f"{datetime.now():%Y-%m-%d_%H%M%S}"
 plt.title(d)
 plot_path = Path(model_name) / f"confusion_matrix_{model_name}_{d}.png"
 logger.info(f"Saving confusion matrix to {plot_path.name}")
 plt.savefig(plot_path.as_posix())
 plt.close()
 
-# Plot the loss curves
-plt.figure(figsize=(10, 6))
-plt.plot(loss_logger.loss_history["train_loss"], label="Training Loss", color="blue")
-if loss_logger.loss_history["eval_loss"]:
+# Plot the loss curves if there are at least a few points
+if len(loss_logger.loss_history["train_loss"]) > 1:
+    plt.figure(figsize=(10, 6))
+    plt.plot(loss_logger.loss_history["train_loss"], label="Training Loss", color="blue")
     eval_steps = list(range(0, len(loss_logger.loss_history["train_loss"]),
                             len(loss_logger.loss_history["train_loss"]) // len(loss_logger.loss_history["eval_loss"])))
     eval_steps = eval_steps[:len(loss_logger.loss_history["eval_loss"])]
     plt.plot(eval_steps, loss_logger.loss_history["eval_loss"], label="Validation Loss", color="orange")
-
-plt.xlabel("Steps")
-plt.ylabel("Loss")
-plt.title(f"Loss Curves for {model_name}")
-plt.legend()
-loss_curve_path = Path(model_name) / f"loss_curve_{model_name}_{datetime.now():%Y-%m-%d_%H%M%S}.png"
-plt.savefig(loss_curve_path.as_posix())
-logger.info(f"Loss curve saved to {loss_curve_path.name}")
-plt.close()
+    plt.xlabel("Steps")
+    plt.ylabel("Loss")
+    plt.title(f"Loss Curves for {model_name}")
+    plt.legend()
+    loss_curve_path = Path(model_name) / f"loss_curve_{model_name}_{datetime.now():%Y-%m-%d_%H%M%S}.png"
+    plt.savefig(loss_curve_path.as_posix())
+    logger.info(f"Loss curve saved to {loss_curve_path.name}")
+    plt.close()
 
 # Push to the HuggingFace model hub
 # trainer.push_to_hub()
