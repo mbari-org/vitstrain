@@ -18,24 +18,49 @@ pip install -r requirements.txt
 
 ## Usage
 
-Step 1. Download the labeled data
+Step 1. Download the labeled data and crop the images using the [aidata repository](https://github.com/mbari-org/aidata)
 
 ```bash
 cd aidata
-python aidata download --config $PWD/aidata/config/config_uav.yml --base-path $PWD --concepts Kelp --voc  --token $TATOR_TOKEN
+python aidata download \
+        --config $PWD/aidata/config/config_uav.yml \
+        --base-path $PWD --voc \
+        --token $TATOR_TOKEN --crop-roi --resize 224
 ```
 
-Step 2. Crop the images
+Step 2. Train the model
 
 ```bash
-cd imagecropper
-python src/run.py --image_dir $PWD/Baseline/images --output_path $PWD/Baseline/crops --data_dir $PWD/Baseline/voc --resize 224x224
+python src/fine_tune_vit.py \
+        --data-path $PWD/Baseline \
+        --base-model google/vit-base-patch16-224-in21k
+        --model-name mbari-uav-vit-b-16 \
+        --epochs 30
 ```
 
-Step 3. Train the model
-
-Change the `model_name` , `raw_data`, and `filter_data` in the fine_tune_vit.py file to the model you want to train based on the above
-
-```bash
-python src/fine_tune_vit.py
+Example output:
+```text
+/Volumes/DeepSea-AI/models/UAV/mbari-uav-vit-b-16-20250108/
+├── all_results.json
+├── checkpoint-1710
+│   ├── config.json
+│   ├── model.safetensors
+│   ├── optimizer.pt
+│   ├── preprocessor_config.json
+│   ├── rng_state.pth
+│   ├── scheduler.pt
+│   ├── trainer_state.json
+│   └── training_args.bin
+├── config.json
+├── confusion_matrix_mbari-uav-vit-b-16-20250108_2025-01-08 073852.png
+├── eval_results.json
+├── loss_curve_mbari-uav-vit-b-16-20250108_2025-01-08_073852.png
+├── model.safetensors
+├── preprocessor_config.json
+└── training_args.bin
 ```
+
+![docs/imgs/confusion_matrix.png](./docs/imgs/confusion_matrix.png)
+![docs/imgs/loss_curve.png](./docs/imgs/loss_curve.png)
+
+last updated: 2025-01-09
