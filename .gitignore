@@ -14,7 +14,6 @@ my_*
 *.pt
 
 # test data
-data/
 *.tar.gz
 
 # Pycharm
@@ -51,6 +50,13 @@ Thumbs.db
 *.flv
 *.mov
 *.wmv
+*.json
 
 #Mkdocs
 docs/site
+
+# folders of results
+**
+
+#expect of the code
+!src/
