@@ -12,3 +12,5 @@ tzdata==2024.2
 urllib3==2.3.0
 xxhash==3.5.0
 yarl==1.18.3
+albumentations==1.0.3
+seaborn==0.13.2
