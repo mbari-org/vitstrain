@@ -191,6 +191,8 @@ def main():
             super().__init__(*args, **kwargs)
             self.focal_loss = FocalLoss()
 
+        # Adding **kwargs because I got TypeError: main.<locals>.CustomTrainer.
+        # compute_loss() got an unexpected keyword argument 'num_items_in_batch'
         def compute_loss(self, model, inputs, return_outputs=False):
             labels = inputs.pop("labels")
             outputs = model(**inputs)
