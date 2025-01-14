@@ -137,7 +137,7 @@ def main():
     if add_rotations:
         _train_transforms = A.Compose(
             [
-                #A.RandomResizedCrop(height=size, width=size, scale=(0.2, 1.0), p=1.0),
+                A.RandomResizedCrop(height=size, width=size, scale=(0.2, 1.0), p=1.0),
                 A.Rotate(limit=90, interpolation=1, border_mode=4, value=None, p=1),
                 A.Rotate(limit=180, interpolation=1, border_mode=4, value=None, p=1),
                 A.Rotate(limit=270, interpolation=1, border_mode=4, value=None, p=1),
@@ -159,7 +159,7 @@ def main():
     # Validation transforms
     _val_transforms = A.Compose(
         [
-            #A.RandomResizedCrop(height=size, width=size, scale=(0.2, 1.0), p=1.0),
+            A.RandomResizedCrop(height=size, width=size, scale=(0.2, 1.0), p=1.0),
             A.Normalize(mean=image_mean, std=image_std),
             ToTensorV2(),
         ]
@@ -193,7 +193,7 @@ def main():
 
         # Adding **kwargs because I got TypeError: main.<locals>.CustomTrainer.
         # compute_loss() got an unexpected keyword argument 'num_items_in_batch'
-        def compute_loss(self, model, inputs, return_outputs=False, **kwargs):
+        def compute_loss(self, model, inputs, return_outputs=False):
             labels = inputs.pop("labels")
             outputs = model(**inputs)
             logits = outputs.logits
@@ -273,7 +273,7 @@ def main():
 
 
     loss_logger = LossLoggerCallback(save_path=loss_history_file)
-    early_stopping = EarlyStoppingCallback(early_stopping_patience=7)
+    early_stopping = EarlyStoppingCallback(early_stopping_patience=2)
 
     trainer = CustomTrainer(
         model=model,
