@@ -74,6 +74,12 @@ def parse_args():
         default=True,
         help="Set to true to add 90, 180, 270 rotations to the training images.",
     )
+    parser.add_argument(
+        "--early-stopping-epochs",
+        type=int,
+        default=2,
+        help="Number of epochs to wait for early stopping.",
+    )
     return parser.parse_args()
 
 # Main function
@@ -88,6 +94,7 @@ def main():
     raw_data = [Path(path) for path in args.raw_data]
     filter_data = Path(args.filter_data)
     num_epochs = args.num_epochs
+    early_stopping_epochs = args.early_stopping_epochs
 
     # Append timestamp to the model name
     now = datetime.now()
@@ -101,6 +108,7 @@ def main():
 
     logger.info(f"Remove long-tail classes: {remove_long_tail}")
     logger.info(f"Add rotations: {add_rotations}")
+    logger.info(f"Ealy stopping epochs: {early_stopping_epochs}")
     logger.info(f"Model name: {model_name}")
     logger.info(f"Base model: {base_model}")
     logger.info(f"Raw data paths: {[p.as_posix() for p in raw_data]}")
@@ -248,7 +256,7 @@ def main():
     val_ds.set_transform(val_transforms)
     test_ds.set_transform(val_transforms)
 
-    args = TrainingArguments(
+    train_args = TrainingArguments(
         model_name,
         save_strategy="epoch",
         eval_strategy="epoch",
@@ -273,11 +281,11 @@ def main():
 
 
     loss_logger = LossLoggerCallback(save_path=loss_history_file)
-    early_stopping = EarlyStoppingCallback(early_stopping_patience=2)
+    early_stopping = EarlyStoppingCallback(early_stopping_patience=early_stopping_epochs)
 
     trainer = CustomTrainer(
         model=model,
-        args=args,
+        args=train_args,
         train_dataset=train_ds,
         eval_dataset=val_ds,
         data_collator=collate_fn,
