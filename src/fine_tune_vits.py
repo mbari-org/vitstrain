@@ -33,7 +33,7 @@ def parse_args():
     parser.add_argument(
         "--remove-long-tail",
         type=bool,
-        default=True,
+        default=False,
         help="Set to true to truncate the long-tail classes.",
     )
     parser.add_argument(
