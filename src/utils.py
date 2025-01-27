@@ -87,6 +87,7 @@ def create_dataset(logger: Logger, remove_long_tail:bool, raw_dataset_paths: Lis
             shutil.copy(image, dest)
     combined_stats = correct_stats
 
+    deleted_labels = {}
     if remove_long_tail:
         # This is to avoid overfitting on labels with very few examples
         # Count the number of images in each label and remove labels with less than 10 images
@@ -97,6 +98,7 @@ def create_dataset(logger: Logger, remove_long_tail:bool, raw_dataset_paths: Lis
                 if count < 10:
                     logger.info(f"Removing label {d.name} with {count} images")
                     shutil.rmtree(d)
+                    deleted_labels[d.name] = count
                 else:
                     logger.info(f"Keeping label {d.name} with {count} images")
                     revised_stats[d.name] = count
@@ -104,6 +106,10 @@ def create_dataset(logger: Logger, remove_long_tail:bool, raw_dataset_paths: Lis
 
     with (train_dataset_root / 'stats.json').open('w') as f:
         json.dump(combined_stats, f)
+
+    # Write the deleted labels to a json file
+    with (train_dataset_root / 'deleted_labels.json').open('w') as f:
+        json.dump(deleted_labels, f)
 
     # Load the dataset
     ds = load_dataset(train_dataset_root.as_posix())
