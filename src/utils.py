@@ -71,17 +71,21 @@ def create_dataset(logger: Logger, remove_long_tail:bool, raw_dataset_paths: Lis
                 else:
                     combined_stats[k] = int(v)
 
-    # Copy the images to a new directory
+    # Copy the images to a new directory and revise the stats in case there are errors
+    correct_stats = {}
     for label, count in combined_stats.items():
         images = []
         for path in raw_dataset_paths:
             crop_path = path / 'crops' / str(label)
             images.extend(list(crop_path.glob('*.jpg')))
         logger.info(f"Found {len(images)} images for {label}")
+        if len(images) > 0:
+            correct_stats[label] = len(images)
         for image in tqdm.tqdm(images, desc=f"Copying images for {label}"):
             dest = train_dataset_root / str(label) / image.name
             dest.parent.mkdir(parents=True, exist_ok=True)
             shutil.copy(image, dest)
+    combined_stats = correct_stats
 
     if remove_long_tail:
         # This is to avoid overfitting on labels with very few examples
@@ -115,7 +119,7 @@ def create_dataset(logger: Logger, remove_long_tail:bool, raw_dataset_paths: Lis
     })
 
     # Create label mappings, id2label and label2id from the dataset
-    id2label = {id:label for id, label in enumerate(sorted(combined_stats.keys()))}
+    id2label = {id:label for id, label in enumerate(combined_stats.keys())}
     label2id = {label:id for id,label in id2label.items()}
     logger.info(label2id)
     logger.info(id2label)
