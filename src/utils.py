@@ -98,6 +98,9 @@ def create_dataset(logger: Logger, remove_long_tail:bool, raw_dataset_paths: Lis
                     revised_stats[d.name] = count
         combined_stats = revised_stats
 
+    with (train_dataset_root / 'stats.json').open('w') as f:
+        json.dump(combined_stats, f)
+
     # Load the dataset
     ds = load_dataset(train_dataset_root.as_posix())
 
