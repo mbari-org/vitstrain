@@ -125,7 +125,7 @@ def create_dataset(logger: Logger, remove_long_tail:bool, raw_dataset_paths: Lis
     })
 
     # Create label mappings, id2label and label2id from the dataset
-    id2label = {id:label for id, label in enumerate(combined_stats.keys())}
+    id2label = {id:label for id, label in enumerate(sorted(combined_stats.keys()))}
     label2id = {label:id for id,label in id2label.items()}
     logger.info(label2id)
     logger.info(id2label)
