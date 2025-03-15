@@ -78,6 +78,7 @@ def create_dataset(logger: Logger, remove_long_tail:bool, raw_dataset_paths: Lis
         for path in raw_dataset_paths:
             crop_path = path / 'crops' / str(label)
             images.extend(list(crop_path.glob('*.jpg')))
+            images.extend(list(crop_path.glob('*.png')))
         logger.info(f"Found {len(images)} images for {label}")
         if len(images) > 0:
             correct_stats[label] = len(images)
