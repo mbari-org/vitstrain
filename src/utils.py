@@ -58,8 +58,7 @@ def create_dataset(logger: Logger, remove_long_tail:bool, raw_dataset_paths: Lis
             raise FileNotFoundError(f"Path {path} does not exist")
 
         # Combine the stats
-        crop_path = path / 'crops'
-        stats_path = crop_path / 'stats.json'
+        stats_path = path / 'stats.json'
         if not stats_path.exists():
             raise FileNotFoundError(f"Path {stats_path} does not exist")
 
@@ -76,9 +75,9 @@ def create_dataset(logger: Logger, remove_long_tail:bool, raw_dataset_paths: Lis
     for label, count in combined_stats.items():
         images = []
         for path in raw_dataset_paths:
-            crop_path = path / 'crops' / str(label)
-            images.extend(list(crop_path.glob('*.jpg')))
-            images.extend(list(crop_path.glob('*.png')))
+            class_path = path / str(label)
+            images.extend(list(class_path.glob('*.jpg')))
+            images.extend(list(class_path.glob('*.png')))
         logger.info(f"Found {len(images)} images for {label}")
         if len(images) > 0:
             correct_stats[label] = len(images)
