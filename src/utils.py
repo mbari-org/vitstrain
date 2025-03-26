@@ -1,4 +1,4 @@
-# vittrain
+# vitstrain
 # Filename: src/utils.py
 # Description: Utilities used when fine-tuning a Vision Transformer model with HuggingFace
 

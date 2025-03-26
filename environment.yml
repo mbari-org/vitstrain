@@ -1,4 +1,4 @@
-name: vittrain
+name: vitstrain
 channels:
   - conda-forge
 dependencies:

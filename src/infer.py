@@ -1,4 +1,4 @@
-# vittrain
+# vitstrain
 # Filename: src/infer.py
 # Description: Simple example on using a fine-tuned a Vision Transformer model with a HuggingFace Model
 

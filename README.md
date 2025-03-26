@@ -1,4 +1,4 @@
-# Training library for fine-tuning VIT models on custom datasets
+# Training library for fine-tuning ViTS (Vision Transformer) models on custom datasets
 
 ## Installation
 
@@ -6,13 +6,14 @@
 ### Create a new environment conda
 ```bash
 conda env create
+conda activate vitstrain
 ```
 
 ### If you prefer pyenv
 
 ```bash
-pyenv virtualenv 3.11.0 vittrain
-pyenv activate vittrain
+pyenv virtualenv 3.11.0 vitstrain
+pyenv activate vitstrain
 pip install -r requirements.txt
 ```
 

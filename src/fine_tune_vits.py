@@ -1,6 +1,6 @@
-# vittrain
+# vitstrain
 # Filename: src/fine_tune_vits.py
-# Description: Fine-tuning a Vision Transformer model with HuggingFace
+# Description: Fine-tuning a Vision Transformer model
 import logging
 from datetime import datetime
 from pathlib import Path
@@ -17,6 +17,8 @@ import torch.nn.functional as F
 from transformers import TrainingArguments, Trainer
 from transformers import AutoModelForImageClassification, ViTForImageClassification, AutoImageProcessor, TrainerCallback, EarlyStoppingCallback
 from sklearn.metrics import confusion_matrix, ConfusionMatrixDisplay
+
+from args import parse_args
 from utils import collate_fn, create_dataset
 import matplotlib.pyplot as plt
 
@@ -26,61 +28,6 @@ formatter = logging.Formatter("%(asctime)s %(levelname)s %(message)s")
 console = logging.StreamHandler()
 logger.addHandler(console)
 logger.setLevel(logging.DEBUG)
-
-# Parse command-line arguments
-def parse_args():
-    parser = argparse.ArgumentParser(description="Train an image classification model.")
-    parser.add_argument(
-        "--remove-long-tail",
-        type=bool,
-        default=False,
-        help="Set to true to truncate the long-tail classes.",
-    )
-    parser.add_argument(
-        "--model-name",
-        type=str,
-        default="catsdogs-vit-b-16",
-        help="Name of the model you want to train.",
-    )
-    parser.add_argument(
-        "--base-model",
-        type=str,
-        default="google/vit-base-patch16-224",
-        help="Name of the base model to fine-tune from, e.g. google/vit-base-patch16-224 or facebook/dino-vitb8.",
-    )
-    parser.add_argument(
-        "--raw-data",
-        type=str,
-        nargs="+",
-        required=False,
-        default=[str(Path(__file__).parent.parent / "data")],
-        help="Paths to the raw dataset (space-separated if multiple paths).",
-    )
-    parser.add_argument(
-        "--filter-data",
-        type=str,
-        default=str(Path(__file__).parent.parent / "data_filter"),
-        help="Path to store the filtered dataset.",
-    )
-    parser.add_argument(
-        "--num-epochs",
-        type=int,
-        default=4,
-        help="Number of epochs to train the model.",
-    )
-    parser.add_argument(
-        "--add-rotations",
-        type=bool,
-        default=True,
-        help="Set to true to add 90, 180, 270 rotations to the training images.",
-    )
-    parser.add_argument(
-        "--early-stopping-epochs",
-        type=int,
-        default=2,
-        help="Number of epochs to wait for early stopping.",
-    )
-    return parser.parse_args()
 
 # Main function
 def main():
@@ -108,7 +55,7 @@ def main():
 
     logger.info(f"Remove long-tail classes: {remove_long_tail}")
     logger.info(f"Add rotations: {add_rotations}")
-    logger.info(f"Ealy stopping epochs: {early_stopping_epochs}")
+    logger.info(f"Early stopping epochs: {early_stopping_epochs}")
     logger.info(f"Model name: {model_name}")
     logger.info(f"Base model: {base_model}")
     logger.info(f"Raw data paths: {[p.as_posix() for p in raw_data]}")
