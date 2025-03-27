@@ -5,6 +5,7 @@
 import shutil
 from logging import Logger
 from pathlib import Path
+from PIL import ImageStat, Image
 import tqdm
 import json
 import numpy as np
@@ -20,7 +21,6 @@ def collate_fn(examples):
 
 
 def compute_mean_std(dataset):
-    from PIL import ImageStat, Image
     ds_mean = dataset.map(lambda x: {
                          "mean": ImageStat.Stat(x["image"]).mean},
                          remove_columns=dataset.column_names,
