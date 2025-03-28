@@ -1,6 +1,6 @@
-# Training library for fine-tuning ViTS (Vision Transformer) models on custom datasets
+# Training library for fine-tuning ViTs (Vision Transformer) models on custom datasets
 
-## Installation
+## Installation ⚙️ 
 
 
 ### Create a new environment conda
@@ -17,7 +17,7 @@ pyenv activate vitstrain
 pip install -r requirements.txt
 ```
 
-## Usage
+## Training 🚀  
 
 Step 1. Download the labeled data and crop the images using the [aidata repository](https://github.com/mbari-org/aidata)
 
