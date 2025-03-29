@@ -11,7 +11,7 @@ commit_parser = "angular"
 logging_use_named_masks = true
 major_on_zero = true
 assets = []
-version_variables = ["src/__init__.py:__version__"]
+version_variables = ["src/version.py:__version__"]
 
 [tool.semantic_release.remote.token]
 env = "GITHUB_TOKEN"

@@ -4,6 +4,9 @@
 import argparse
 from pathlib import Path
 
+
+DATA_PATH = Path(__file__).parent.parent / "data"
+
 def parse_args():
     parser = argparse.ArgumentParser(description="Train an image classification Vision Transformer (ViTS) model.")
     parser.add_argument(
@@ -11,6 +14,11 @@ def parse_args():
         type=bool,
         default=False,
         help="Set to true to truncate the long-tail classes.",
+    )
+    parser.add_argument(
+        "--remap",
+        type=str,
+        help="Path to a JSON file that maps the original class names to new class names.",
     )
     parser.add_argument(
         "--model-name",
@@ -29,7 +37,6 @@ def parse_args():
         type=str,
         nargs="+",
         required=False,
-        default=[str(Path(__file__).parent.parent / "data")],
         help="Paths to the raw dataset (space-separated if multiple paths).",
     )
     parser.add_argument(

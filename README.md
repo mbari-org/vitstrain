@@ -19,11 +19,43 @@ pip install -r requirements.txt
 
 ## Training 🚀  
 
-Step 1. Download the labeled data and crop the images using the [aidata repository](https://github.com/mbari-org/aidata)
+Step 1. Download the labeled data and crop the images using the [mbari-aidata pip module](https://github.com/mbari-org/aidata)
+ 
+Data should be in folder per class with and required stats.json file. 
+For example, the folder structure should look like this:
 
-Here, we are using the `config_uav.yml` configuration file to download the UAV dataset. 
+```
+└── crops
+    ├── cats
+    │   ├── cat.0.jpg
+    │   ├── cat.1.jpg
+    │   ├── cat.10.jpg
+    │   ├── cat.100.jpg 
+    ├── dogs
+    │   ├── dog.0.jpg
+    │   ├── dog.1.jpg
+    │   ├── dog.10.jpg
+    │   ├── dog.100.jpg 
+    └── stats.json
+```                                                                                                                                                                                          
+
+The stats.json file should contain the following information:
+
+```json
+{ 
+    "total_labels": {
+        "cats": 100,
+        "dogs": 100
+    }
+}
+```
+
+Here, we are using the `config_uav.yml` configuration file to download the UAV dataset,
+download the data, crop the images, and resize them to 224x224 pixels.
+TODO: add more details about the configuration file.
 
 ```bash
+pip install mbari-aidata
 cd aidata
 python aidata download \
         --config config_uav.yml \
@@ -64,7 +96,34 @@ Example output:
 └── training_args.bin
 ```
 
+To remap the classes, use the `--remap` flag, passing in a file with a json formatted dictionary
+
+
+```json
+
+{
+    "oldname" : "newname"
+}
+```
+
+For example
+
+```json
+{
+    "cats" : "felines",
+    "dogs" : "canines"
+}
+```
+
+THen a
+
+```bash
+python src/fine_tune_vit.py \
+        ...
+        --remap remap.json
+```
+
 ![docs/imgs/confusion_matrix.png](./docs/imgs/confusion_matrix.png)
 ![docs/imgs/loss_curve.png](./docs/imgs/loss_curve.png)
 
-last updated: 2025-03-23
+last updated: 2025-03-29

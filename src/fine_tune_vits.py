@@ -4,7 +4,6 @@
 import logging
 from datetime import datetime
 from pathlib import Path
-import argparse
 import albumentations as A
 from albumentations.pytorch import ToTensorV2
 import json
@@ -15,11 +14,12 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 from transformers import TrainingArguments, Trainer
-from transformers import AutoModelForImageClassification, ViTForImageClassification, AutoImageProcessor, TrainerCallback, EarlyStoppingCallback
-from sklearn.metrics import confusion_matrix, ConfusionMatrixDisplay
+from transformers import AutoModelForImageClassification, AutoImageProcessor, TrainerCallback, EarlyStoppingCallback
+from sklearn.metrics import confusion_matrix
 
 from args import parse_args
 from utils import collate_fn, create_dataset
+from version import __version__
 import matplotlib.pyplot as plt
 
 # Configure logger
@@ -38,6 +38,7 @@ def main():
     add_rotations = args.add_rotations
     model_name = args.model_name
     base_model = args.base_model
+    remap = args.remap
     raw_data = [Path(path) for path in args.raw_data]
     filter_data = Path(args.filter_data)
     num_epochs = args.num_epochs
@@ -51,8 +52,8 @@ def main():
     loss_history_file = f"loss_history_{model_name}.json"
 
     # Log configuration
+    logger.info(f"=========================vitstrain v{__version__}========================================")
     logger.info(f"Number of epochs: {num_epochs}")
-
     logger.info(f"Remove long-tail classes: {remove_long_tail}")
     logger.info(f"Add rotations: {add_rotations}")
     logger.info(f"Early stopping epochs: {early_stopping_epochs}")
@@ -60,14 +61,19 @@ def main():
     logger.info(f"Base model: {base_model}")
     logger.info(f"Raw data paths: {[p.as_posix() for p in raw_data]}")
     logger.info(f"Filtered data path: {filter_data}")
+    logger.info(f"Remap classes: {remap}")
     logger.info(f"Loss history file: {loss_history_file}")
     logger.info("==========================================================================")
     logger.info(f"Remove the loss history file and filtered data path if you want to restart training, e.g. rm {loss_history_file} && rm -rf {filter_data}")
     logger.info("Otherwise, the training will resume from the last checkpoint.")
     logger.info("==========================================================================")
 
+    if remap:
+        with open(remap) as f:
+            remap = json.load(f)
+
     # Create the dataset from the raw dataset(s)
-    ds_splits, id2label, label2id, image_mean, image_std = create_dataset(logger, remove_long_tail, raw_data, filter_data)
+    ds_splits, id2label, label2id, image_mean, image_std = create_dataset(logger, remove_long_tail, raw_data, filter_data, remap)
 
     # The id2label and label2id are used to convert the labels to and from the model's internal representation
     # These are stored in the HuggingFace config.json file with the model, e.g. mbari-uav-vit-b-16/config.json
@@ -303,6 +309,8 @@ def main():
         plt.savefig(loss_curve_path.as_posix())
         logger.info(f"Loss curve saved to {loss_curve_path.name}")
         plt.close()
+
+    # TODO: add version to something for provenance
 
     # Push to the HuggingFace model hub
     # trainer.push_to_hub()

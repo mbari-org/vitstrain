@@ -10,7 +10,7 @@ import tqdm
 import json
 import numpy as np
 import torch
-from typing import List
+from typing import List, Dict
 from datasets import load_dataset, DatasetDict
 
 
@@ -46,12 +46,12 @@ def compute_mean_std(dataset):
     avg_std /= 255
     return list(avg_mean), list(avg_std)
 
-def create_dataset(logger: Logger, remove_long_tail:bool, raw_dataset_paths: List[Path], train_dataset_root: Path):
+def create_dataset(logger: Logger, remove_long_tail:bool, raw_dataset_paths: List[Path], train_dataset_root: Path, remap_class: Dict[str, str] = None):
     if train_dataset_root.exists():
         logger.info(f"Removing existing dataset at {train_dataset_root}")
         shutil.rmtree(train_dataset_root)
 
-    # Combine the raw datasets into a single dataset
+    # Combine the raw dataset stats
     combined_stats = {}
     for path in raw_dataset_paths:
         if not path.exists():
@@ -70,19 +70,24 @@ def create_dataset(logger: Logger, remove_long_tail:bool, raw_dataset_paths: Lis
                 else:
                     combined_stats[k] = int(v)
 
-    # Copy the images to a new directory and revise the stats in case there are errors
+    # Remap the classes if necessary, then copy the images to a new directory and
+    # revise the stats in case there are errors in the original stats.json
     correct_stats = {}
     for label, count in combined_stats.items():
         images = []
+        final_label = label
+        if remap_class is not None:
+            if label in remap_class.keys():
+                final_label = remap_class[label]
         for path in raw_dataset_paths:
             class_path = path / str(label)
             images.extend(list(class_path.glob('*.jpg')))
             images.extend(list(class_path.glob('*.png')))
-        logger.info(f"Found {len(images)} images for {label}")
+        logger.info(f"Found {len(images)} images for {label} mapped to {final_label}")
         if len(images) > 0:
-            correct_stats[label] = len(images)
-        for image in tqdm.tqdm(images, desc=f"Copying images for {label}"):
-            dest = train_dataset_root / str(label) / image.name
+            correct_stats[final_label] = len(images)
+        for image in tqdm.tqdm(images, desc=f"Copying images for {label} to {final_label}"):
+            dest = train_dataset_root / str(final_label) / image.name
             dest.parent.mkdir(parents=True, exist_ok=True)
             shutil.copy(image, dest)
     combined_stats = correct_stats
