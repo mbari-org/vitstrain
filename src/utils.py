@@ -117,8 +117,10 @@ def create_dataset(logger: Logger, remove_long_tail:bool, raw_dataset_paths: Lis
         json.dump(deleted_labels, f)
 
     # Load the dataset
+    logger.info(f"Loading dataset {train_dataset_root}...")
     ds = load_dataset(train_dataset_root.as_posix())
 
+    logger.info(f"Splitting data")
     ds_train_test = ds['train'].train_test_split(test_size=0.2, seed=42)
     # Split the 20% test + valid in half test, half valid
     ds_valtest = ds_train_test['test'].train_test_split(test_size=0.5, seed=42)
@@ -130,6 +132,7 @@ def create_dataset(logger: Logger, remove_long_tail:bool, raw_dataset_paths: Lis
     })
 
     # Create label mappings, id2label and label2id from the dataset
+    logger.info(f"Creating label maps and computing statistics")
     id2label = {id:label for id, label in enumerate(sorted(combined_stats.keys()))}
     label2id = {label:id for id,label in id2label.items()}
     logger.info(label2id)
