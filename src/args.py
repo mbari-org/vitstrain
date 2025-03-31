@@ -23,7 +23,7 @@ def parse_args():
     parser.add_argument(
         "--model-name",
         type=str,
-        default="catsdogs-vit-b-16",
+        default="catsdogs-vit-b16",
         help="Name of the model you want to train.",
     )
     parser.add_argument(
