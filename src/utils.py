@@ -24,10 +24,12 @@ def compute_mean_std(dataset):
     ds_mean = dataset.map(lambda x: {
                          "mean": ImageStat.Stat(x["image"]).mean},
                          remove_columns=dataset.column_names,
+                         keep_in_memory=False,
                          num_proc=16)
     ds_std = dataset.map(lambda x: {
                          "stddev": ImageStat.Stat(x["image"]).stddev},
                          remove_columns=dataset.column_names,
+                         keep_in_memory=False,
                          num_proc=16)
 
     avg_mean = np.zeros(3)
@@ -79,17 +81,17 @@ def create_dataset(logger: Logger, remove_long_tail:bool, raw_dataset_paths: Lis
         if remap_class is not None:
             if label in remap_class.keys():
                 final_label = remap_class[label]
+        correct_stats[final_label] = 0
         for path in raw_dataset_paths:
             class_path = path / str(label)
             images.extend(list(class_path.glob('*.jpg')))
             images.extend(list(class_path.glob('*.png')))
         logger.info(f"Found {len(images)} images for {label} mapped to {final_label}")
-        if len(images) > 0:
-            correct_stats[final_label] = len(images)
         for image in tqdm.tqdm(images, desc=f"Copying images for {label} to {final_label}"):
             dest = train_dataset_root / str(final_label) / image.name
             dest.parent.mkdir(parents=True, exist_ok=True)
             shutil.copy(image, dest)
+            correct_stats[final_label] += 1
     combined_stats = correct_stats
 
     deleted_labels = {}
