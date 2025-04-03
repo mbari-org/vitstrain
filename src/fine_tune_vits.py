@@ -13,8 +13,8 @@ import numpy as np
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-from transformers import TrainingArguments, Trainer
-from transformers import AutoModelForImageClassification, AutoImageProcessor, TrainerCallback, EarlyStoppingCallback
+from transformers import TrainingArguments, Trainer, AutoProcessor
+from transformers import AutoModelForImageClassification, TrainerCallback, EarlyStoppingCallback
 from sklearn.metrics import confusion_matrix
 
 from args import parse_args
@@ -88,9 +88,16 @@ def main():
     val_ds = ds_splits['valid']
     test_ds = ds_splits['test']
 
-    # Image processor and transforms
-    processor = AutoImageProcessor.from_pretrained(base_model, use_fast=True)
-    size = processor.size["height"]
+    # Image processor and transforms - these differ for each model
+    processor = AutoProcessor.from_pretrained(base_model, use_fast=True)
+    if hasattr(processor, "crop_size"):
+        size = processor.crop_size["height"]
+    elif hasattr(processor, "size"):
+        size = processor.size["height"]
+    else:
+        logger.error(f"No crop size found in processor. Using default size of 224.")
+        size = 224
+
     processor.image_mean = image_mean
     processor.image_std = image_std
 
