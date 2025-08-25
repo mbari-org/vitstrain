@@ -12,6 +12,8 @@ import numpy as np
 import torch
 from typing import List, Dict
 from datasets import load_dataset, DatasetDict
+from sklearn.model_selection import train_test_split
+import pandas as pd
 
 
 def collate_fn(examples):
@@ -123,14 +125,23 @@ def create_dataset(logger: Logger, remove_long_tail:bool, raw_dataset_paths: Lis
     ds = load_dataset(train_dataset_root.as_posix())
 
     logger.info(f"Splitting data")
-    ds_train_test = ds['train'].train_test_split(test_size=0.2, seed=42)
-    # Split the 20% test + valid in half test, half valid
-    ds_valtest = ds_train_test['test'].train_test_split(test_size=0.5, seed=42)
+    
+    # Convert to pandas dataframe
+    df_train = ds['train'].to_pandas()
+
+    X = df_train['image']
+    y = df_train['label']
+
+    # Using sklearn train_test_split instead of huggingface because it has the stratify flag.
+    X_train, X_test_val, y_train, y_test_val = train_test_split(X, y, test_size=0.2, random_state=42, stratify=y)
+
+    # # Split the 20% test + valid in half test, half valid
+    X_val, X_test, y_val, y_test  = train_test_split(X_test_val, y_test_val, test_size=0.5, random_state=42, stratify=y_test_val)
 
     ds_splits = DatasetDict({
-        'train': ds_train_test['train'],
-        'valid': ds_valtest['train'],
-        'test': ds_valtest['test']
+        'train': ds['train'].select(X_train.index),
+        'valid': ds['train'].select(X_val.index),
+        'test': ds['train'].select(X_test.index)
     })
 
     # Create label mappings, id2label and label2id from the dataset
