@@ -136,7 +136,7 @@ def create_dataset(logger: Logger, remove_long_tail:bool, raw_dataset_paths: Lis
     X_train, X_test_val, y_train, y_test_val = train_test_split(X, y, test_size=0.2, random_state=42, stratify=y)
 
     # Split the 20% test + valid in half test, half valid
-    X_val, X_test, y_val, y_test  = train_test_split(X_test_val, y_test_val, test_size=0.5, random_state=42, stratify=y_test_val)
+    X_val, X_test, y_val, y_test = train_test_split(X_test_val, y_test_val, test_size=0.5, random_state=42, stratify=y_test_val)
 
     ds_splits = DatasetDict({
         'train': ds['train'].select(X_train.index),
