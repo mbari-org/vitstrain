@@ -36,13 +36,13 @@ def parse_args():
         "--raw-data",
         type=str,
         nargs="+",
-        required=False,
+        default=[(DATA_PATH / "crops").as_posix()],
         help="Paths to the raw dataset (space-separated if multiple paths).",
     )
     parser.add_argument(
         "--filter-data",
         type=str,
-        default=str(Path(__file__).parent.parent / "data_filter"),
+        default=(DATA_PATH/ "data_filter").as_posix(),
         help="Path to store the filtered dataset.",
     )
     parser.add_argument(
