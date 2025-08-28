@@ -73,7 +73,7 @@ python src/fine_tune_vit.py \
 
 Example output:
 ```text
-ccatsdogs-vit-b16-20250828
+catsdogs-vit-b16-20250828
 ├── all_results.json
 ├── checkpoint-100
 │   ├── config.json
