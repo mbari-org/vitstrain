@@ -1,0 +1,13 @@
+repos:
+-   repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v2.3.0
+    hooks:
+    -   id: end-of-file-fixer
+        exclude: "^stream/old/.*"
+    -   id: trailing-whitespace
+        exclude: "^stream/old/.*"
+-   repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: v0.12.11
+    hooks:
+      - id: ruff
+      - id: ruff-format

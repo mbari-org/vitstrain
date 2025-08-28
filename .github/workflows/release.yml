@@ -1,9 +1,11 @@
 name: New Release
+
 on:
   workflow_dispatch:
   push:
     branches:
       - main
+
 jobs:
   semantic_release:
     runs-on: ubuntu-latest
@@ -13,8 +15,28 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Python Semantic Release
-        id: semantic
-        uses: python-semantic-release/python-semantic-release@master
+      - name: Set up Python
+        uses: actions/setup-python@v2
         with:
-          github_token: ${{ secrets.GITHUB_TOKEN }}
+          python-version: '3.11'
+
+      - name: Check release status
+        id: release-status
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          pip install python-semantic-release==8
+          if semantic-release --noop --strict version
+          then
+            echo "Releasing new version."
+          else
+            echo "Skipping release steps."
+          fi
+
+      - if: steps.release-status.outputs.released == 'true'
+        name: Release to GitHub with Changelog
+        id: github-release
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          semantic-release version --changelog

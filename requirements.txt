@@ -14,3 +14,4 @@ xxhash==3.5.0
 yarl==1.18.3
 albumentations==1.4.24
 seaborn==0.13.2
+pre-commit
