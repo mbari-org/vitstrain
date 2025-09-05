@@ -19,7 +19,18 @@ pip install -r requirements.txt
 
 ## Training 🚀  
 
-Step 1. Download the labeled data and crop the images using the [mbari-aidata pip module](https://github.com/mbari-org/aidata)
+### Step 1. Download the labeled data 
+
+
+TL;DR: For a quick-start, use the included `data/catsdogs.tar.gz` file, which contains data in the required format.
+
+```bash
+tar -xvzf data/catsdogs.tar.gz
+```
+
+To download and crop data using the `mbari-aidata` package, see more detailed documentation in our
+[aidata documentation](https://docs.mbari.org/internal/ai/classification-training/#training-a-classification-model).
+
  
 Data should be in folder per class with and required stats.json file. 
 For example, the folder structure should look like this:
@@ -50,35 +61,21 @@ The stats.json file should contain the following information:
 }
 ```
 
-Here, we are using the `config_uav.yml` configuration file to download the UAV dataset,
-download the data, crop the images, and resize them to 224x224 pixels.
-TODO: add more details about the configuration file.
-
-```bash
-pip install mbari-aidata
-cd aidata
-python aidata download \
-        --config config_uav.yml \
-        --base-path $PWD  \
-        --version Baseline \
-        --token $TATOR_TOKEN --crop-roi --resize 224
-```
-
-Step 2. Train the model
+### Step 2. Train the model
 
 ```bash
 python src/fine_tune_vit.py \
-        --data-path $PWD/Baseline/crops \
+        --raw-data $PWD/data/crops \
         --base-model google/vit-base-patch16-224-in21k
-        --model-name mbari-uav-vit-b16 \
-        --epochs 30
+        --model-name catsdogs-vit-b16 \
+        --epochs 5
 ```
 
 Example output:
 ```text
-/Volumes/DeepSea-AI/models/UAV/mbari-uav-vit-b16-20250108/
+catsdogs-vit-b16-20250828
 ├── all_results.json
-├── checkpoint-1710
+├── checkpoint-100
 │   ├── config.json
 │   ├── model.safetensors
 │   ├── optimizer.pt
@@ -88,10 +85,11 @@ Example output:
 │   ├── trainer_state.json
 │   └── training_args.bin
 ├── config.json
-├── confusion_matrix_mbari-uav-vit-b16-20250108_2025-01-08 073852.png
+├── confusion_matrix_catsdogs-vit-b16-20250828_2025-08-28_144843.png
 ├── eval_results.json
-├── loss_curve_mbari-uav-vit-b16-20250108_2025-01-08_073852.png
+├── loss_curve_catsdogs-vit-b16-20250828_2025-08-28_144843.png
 ├── model.safetensors
+├── pr_curves_catsdogs-vit-b16-20250828_2025-08-28_144843.png
 ├── preprocessor_config.json
 └── training_args.bin
 ```
@@ -115,7 +113,7 @@ For example
 }
 ```
 
-THen a
+Then a
 
 ```bash
 python src/fine_tune_vit.py \
@@ -125,5 +123,6 @@ python src/fine_tune_vit.py \
 
 ![docs/imgs/confusion_matrix.png](./docs/imgs/confusion_matrix.png)
 ![docs/imgs/loss_curve.png](./docs/imgs/loss_curve.png)
+![docs/imgs/pr_curves.png](./docs/imgs/pr_curves.png)
 
-last updated: 2025-03-29
+last updated: 2025-08-28

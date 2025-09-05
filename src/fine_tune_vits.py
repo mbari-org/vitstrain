@@ -16,9 +16,9 @@ import torch.nn.functional as F
 from transformers import TrainingArguments, Trainer, AutoProcessor
 from transformers import AutoModelForImageClassification, TrainerCallback, EarlyStoppingCallback
 from sklearn.metrics import confusion_matrix
-
 from args import parse_args
-from utils import collate_fn, create_dataset
+from data_utils import collate_fn, create_dataset
+from plot_utils import plot_multiclass_pr_curves
 from version import __version__
 import matplotlib.pyplot as plt
 
@@ -269,9 +269,10 @@ def main():
     trainer.log_metrics("eval", metrics)
     trainer.save_metrics("eval", metrics)
 
-    # Output other metrics and confusion matrix
+    # Output other metrics
     y_true = outputs.label_ids
     y_pred = outputs.predictions.argmax(1)
+    y_prob = torch.nn.functional.softmax(torch.tensor(outputs.predictions), dim=-1).numpy()
 
     accuracy = balanced_accuracy_score(y_true, y_pred)
     precision = precision_score(y_true, y_pred, average='micro')
@@ -287,6 +288,12 @@ def main():
     plt.figure(figsize=(12, 12))
     sns.heatmap(cm_normalized, xticklabels=all_labels, yticklabels=all_labels, cmap='Blues')
 
+    # Generate precision-recall plot by class
+    class_names = list(id2label.values())
+    pr_curve_path = plot_multiclass_pr_curves(y_true, y_prob, class_names, model_name)
+    logger.info(f"Precision-recall curves saved to {pr_curve_path.name}")
+
+    # Plot confusion matrix
     plt.xlabel("Predicted")
     plt.ylabel("True")
     plt.title("Confusion Matrix")
