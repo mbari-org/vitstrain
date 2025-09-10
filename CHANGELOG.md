@@ -2,6 +2,13 @@
 
 
 
+## v0.4.1 (2025-09-10)
+
+### Fix
+
+* fix: add missing data_utils.py ([`7984aa2`](https://github.com/mbari-org/vitstrain/commit/7984aa2d25219995446bb19161fca82e8fdc13ff))
+
+
 ## v0.4.0 (2025-09-05)
 
 ### Feature
