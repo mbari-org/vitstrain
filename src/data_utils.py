@@ -117,15 +117,15 @@ def create_dataset(logger: Logger, remove_long_tail: bool, raw_dataset_paths: Li
                     revised_stats[d.name] = count
         combined_stats = revised_stats
 
-    # Using albumentations, augment using crop overlap for all classes less then 5 examples
-    # so that there are at least 5 examples per class
+    # Using albumentations, augment using crop overlap for all classes less then 10 examples
+    # so that there are at least 10 examples per class
     for d in train_dataset_root.iterdir():
         if d.is_dir():
             count = len(list(d.glob('*')))
-            if count < 5 and count > 0:
+            if count < 10 and count > 0:
                 images = list(d.glob('*'))
-                augment_count = 5 - count
-                logger.info(f"Augmenting label {d.name} with {count} images to {augment_count} images")
+                augment_count = 10 - count
+                logger.info(f"Augmenting label {d.name} with {count} images to {count + augment_count} images")
                 for i in range(augment_count):
                     image_path = images[i % count]
                     image = Image.open(image_path)
