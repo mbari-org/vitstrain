@@ -117,6 +117,31 @@ def create_dataset(logger: Logger, remove_long_tail: bool, raw_dataset_paths: Li
                     revised_stats[d.name] = count
         combined_stats = revised_stats
 
+    # Using albumentations, augment using crop overlap for all classes less then 5 examples
+    # so that there are at least 5 examples per class
+    for d in train_dataset_root.iterdir():
+        if d.is_dir():
+            count = len(list(d.glob('*')))
+            if count < 5 and count > 0:
+                images = list(d.glob('*'))
+                augment_count = 5 - count
+                logger.info(f"Augmenting label {d.name} with {count} images to {augment_count} images")
+                for i in range(augment_count):
+                    image_path = images[i % count]
+                    image = Image.open(image_path)
+                    width, height = image.size
+                    # Random crop with 80% overlap
+                    new_width = int(width * 0.8)
+                    new_height = int(height * 0.8)
+                    left = np.random.randint(0, width - new_width + 1)
+                    top = np.random.randint(0, height - new_height + 1)
+                    right = left + new_width
+                    bottom = top + new_height
+                    cropped_image = image.crop((left, top, right, bottom))
+                    augmented_image_path = d / f"{image_path.stem}_aug_{i}{image_path.suffix}"
+                    cropped_image.save(augmented_image_path)
+                    combined_stats[d.name] += 1
+
     with (train_dataset_root / 'stats.json').open('w') as f:
         json.dump(combined_stats, f)
 
