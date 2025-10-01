@@ -2,6 +2,25 @@
 
 
 
+## v0.5.0 (2025-10-01)
+
+### Feature
+
+* feat: merge pull request #10 from mbari-org/cropovlp add support for rare classes in dataset splitting
+
+feat: add support for rare classes in dataset splitting ([`ccfb2d3`](https://github.com/mbari-org/vitstrain/commit/ccfb2d31ce6cff68d6a778816ddff304193732f6))
+
+### Unknown
+
+* Update src/data_utils.py
+
+Co-authored-by: Copilot &lt;175728472+Copilot@users.noreply.github.com&gt; ([`f9e4f6e`](https://github.com/mbari-org/vitstrain/commit/f9e4f6e8dd7d7472375e43787e372a988da88c05))
+
+* bump to 10 ([`6b6ba12`](https://github.com/mbari-org/vitstrain/commit/6b6ba1237da97e15573b50e9b3a8dd61ac2cb101))
+
+* added crop augmentation ([`b6ab657`](https://github.com/mbari-org/vitstrain/commit/b6ab65742af8e9aa09a0b50675c53ffe3410ae66))
+
+
 ## v0.4.1 (2025-09-10)
 
 ### Fix
