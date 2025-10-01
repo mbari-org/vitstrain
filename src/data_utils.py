@@ -117,7 +117,7 @@ def create_dataset(logger: Logger, remove_long_tail: bool, raw_dataset_paths: Li
                     revised_stats[d.name] = count
         combined_stats = revised_stats
 
-    # Using albumentations, augment using crop overlap for all classes less then 10 examples
+    # Using PIL, augment by random cropping with overlap for all classes with fewer than 10 examples
     # so that there are at least 10 examples per class
     for d in train_dataset_root.iterdir():
         if d.is_dir():
