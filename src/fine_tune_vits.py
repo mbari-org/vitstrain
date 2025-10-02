@@ -13,8 +13,8 @@ import numpy as np
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-from transformers import TrainingArguments, Trainer, AutoProcessor
-from transformers import AutoModelForImageClassification, TrainerCallback, EarlyStoppingCallback
+from transformers import TrainingArguments, Trainer, AutoImageProcessor
+from transformers import AutoModel, AutoModelForImageClassification, TrainerCallback, EarlyStoppingCallback
 from sklearn.metrics import confusion_matrix
 from args import parse_args
 from data_utils import collate_fn, create_dataset
@@ -77,22 +77,24 @@ def main():
 
     # The id2label and label2id are used to convert the labels to and from the model's internal representation
     # These are stored in the HuggingFace config.json file with the model, e.g. mbari-uav-vit-b-16/config.json
-    model = AutoModelForImageClassification.from_pretrained(base_model,
-                                                            num_labels=len(label2id.keys()),
-                                                            id2label=id2label,
-                                                            label2id=label2id,
-                                                            ignore_mismatched_sizes=True,
-                                                            )
+    model = AutoModel.from_pretrained(base_model,
+                                        num_labels=len(label2id.keys()),
+                                        id2label=id2label,
+                                        label2id=label2id,
+                                        device_map="auto",
+                                        ignore_mismatched_sizes=True,
+                                        )
 
     train_ds = ds_splits['train']
     val_ds = ds_splits['valid']
     test_ds = ds_splits['test']
 
     # Image processor and transforms - these differ for each model
-    processor = AutoProcessor.from_pretrained(base_model, use_fast=True)
-    if hasattr(processor, "crop_size"):
+    processor = AutoImageProcessor.from_pretrained(base_model, use_fast=True)
+
+    if hasattr(processor, "crop_size") and processor.crop_size is not None:
         size = processor.crop_size["height"]
-    elif hasattr(processor, "size"):
+    elif hasattr(processor, "size") and processor.size is not None:
         size = processor.size["height"]
     else:
         logger.error(f"No crop size found in processor. Using default size of 224.")

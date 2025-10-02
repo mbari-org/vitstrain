@@ -125,7 +125,7 @@ def create_dataset(logger: Logger, remove_long_tail: bool, raw_dataset_paths: Li
             if count < 10 and count > 0:
                 images = list(d.glob('*'))
                 augment_count = 10 - count
-                logger.info(f"Augmenting label {d.name} with {count} images to {count + augment_count} images")
+                logger.info(f"Augmenting label {d.name} with {count} images to {augment_count} images")
                 for i in range(augment_count):
                     image_path = images[i % count]
                     image = Image.open(image_path)
