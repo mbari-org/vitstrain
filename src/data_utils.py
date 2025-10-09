@@ -54,7 +54,7 @@ def compute_mean_std(dataset):
 
 
 def create_dataset(logger: Logger, remove_long_tail: bool, raw_dataset_paths: List[Path], train_dataset_root: Path,
-                   remap_class: Dict[str, str] = None):
+                   remap_class: Dict[str, str] = None, exclude_labels: List[str] = None):
     if train_dataset_root.exists():
         logger.info(f"Removing existing dataset at {train_dataset_root}")
         shutil.rmtree(train_dataset_root)
@@ -81,7 +81,14 @@ def create_dataset(logger: Logger, remove_long_tail: bool, raw_dataset_paths: Li
     # Remap the classes if necessary, then copy the images to a new directory and
     # revise the stats in case there are errors in the original stats.json
     correct_stats = {}
+    excluded_labels = {}
     for label, count in combined_stats.items():
+        # Skip excluded labels
+        if exclude_labels is not None and label in exclude_labels:
+            logger.info(f"Excluding label {label} with {count} images")
+            excluded_labels[label] = count
+            continue
+
         images = []
         final_label = label
         if remap_class is not None:
@@ -145,9 +152,10 @@ def create_dataset(logger: Logger, remove_long_tail: bool, raw_dataset_paths: Li
     with (train_dataset_root / 'stats.json').open('w') as f:
         json.dump(combined_stats, f)
 
-    # Write the deleted labels to a json file
+    # Write the deleted labels (from long-tail removal) and excluded labels to json files
+    all_removed_labels = {**deleted_labels, **excluded_labels}
     with (train_dataset_root / 'deleted_labels.json').open('w') as f:
-        json.dump(deleted_labels, f)
+        json.dump(all_removed_labels, f)
 
     # Load the dataset
     logger.info(f"Loading dataset {train_dataset_root}...")
