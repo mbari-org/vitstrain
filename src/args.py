@@ -63,4 +63,11 @@ def parse_args():
         default=2,
         help="Number of epochs to wait for early stopping.",
     )
+    parser.add_argument(
+        "--exclude-labels",
+        type=str,
+        nargs="+",
+        default=None,
+        help="Labels to exclude from training (space-separated if multiple labels).",
+    )
     return parser.parse_args()
