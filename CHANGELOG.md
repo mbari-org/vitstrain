@@ -2,6 +2,23 @@
 
 
 
+## v0.6.0 (2025-10-09)
+
+### Feature
+
+* feat: Merge pull request #12 from mbari-org/copilot/add-exclude-label-argument
+
+[WIP] Add argument to exclude one or more labels ([`4abd200`](https://github.com/mbari-org/vitstrain/commit/4abd2005de57865f34e1400a609bc27d0b1e620a))
+
+* feat: add --exclude-labels argument to exclude specific labels from training
+
+Co-authored-by: danellecline &lt;1424813+danellecline@users.noreply.github.com&gt; ([`49a32f6`](https://github.com/mbari-org/vitstrain/commit/49a32f692773bbcae6c1f07cefececcf59018cef))
+
+### Unknown
+
+* Initial plan ([`c37b513`](https://github.com/mbari-org/vitstrain/commit/c37b5139efa529b7a64c399667ab0b3025a11d83))
+
+
 ## v0.5.0 (2025-10-01)
 
 ### Feature
