@@ -7,14 +7,15 @@ from pathlib import Path
 import albumentations as A
 from albumentations.pytorch import ToTensorV2
 import json
-from sklearn.metrics import accuracy_score, balanced_accuracy_score, precision_score, recall_score
+import csv
+from sklearn.metrics import accuracy_score, balanced_accuracy_score, precision_score, recall_score, f1_score
 import seaborn as sns
 import numpy as np
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-from transformers import TrainingArguments, Trainer, AutoProcessor
-from transformers import AutoModelForImageClassification, TrainerCallback, EarlyStoppingCallback
+from transformers import TrainingArguments, Trainer, AutoImageProcessor
+from transformers import AutoModel, AutoModelForImageClassification, TrainerCallback, EarlyStoppingCallback
 from sklearn.metrics import confusion_matrix
 from args import parse_args
 from data_utils import collate_fn, create_dataset
@@ -28,6 +29,59 @@ formatter = logging.Formatter("%(asctime)s %(levelname)s %(message)s")
 console = logging.StreamHandler()
 logger.addHandler(console)
 logger.setLevel(logging.DEBUG)
+
+
+def find_optimal_thresholds(y_true, y_prob, class_names, thresholds=np.arange(0.1, 0.9, 0.05)):
+    """
+    Find optimal threshold for each class using F1 maximization.
+
+    For multi-class problems, treats each class as a one-vs-all binary classification
+    and finds the threshold that maximizes F1 score for that class.
+
+    Args:
+        y_true: True labels (numpy array)
+        y_prob: Predicted probabilities for each class (numpy array, shape: n_samples x n_classes)
+        class_names: List of class names
+        thresholds: Array of threshold values to test
+
+    Returns:
+        List of dictionaries with 'class_name', 'class_id', 'threshold', 'f1_score', 'support' for each class
+    """
+    optimal_thresholds = []
+
+    for class_idx, class_name in enumerate(class_names):
+        # Create binary labels for one-vs-all classification
+        y_true_binary = (y_true == class_idx).astype(int)
+        y_prob_binary = y_prob[:, class_idx]
+
+        # Calculate support (number of true instances of this class)
+        support = int(np.sum(y_true_binary))
+
+        best_f1 = 0
+        best_threshold = 0.5  # default threshold
+
+        # Try different thresholds
+        for threshold in thresholds:
+            y_pred_binary = (y_prob_binary >= threshold).astype(int)
+
+            # Calculate F1 score
+            f1 = f1_score(y_true_binary, y_pred_binary, zero_division=0)
+
+            if f1 > best_f1:
+                best_f1 = f1
+                best_threshold = threshold
+
+        optimal_thresholds.append({
+            'class_name': class_name,
+            'class_id': class_idx,
+            'threshold': best_threshold,
+            'f1_score': best_f1,
+            'support': support
+        })
+
+        logger.info(f"Class '{class_name}' (ID: {class_idx}): Optimal threshold = {best_threshold:.3f}, F1 = {best_f1:.3f}, Support = {support}")
+
+    return optimal_thresholds
 
 # Main function
 def main():
@@ -43,7 +97,6 @@ def main():
     filter_data = Path(args.filter_data)
     num_epochs = args.num_epochs
     early_stopping_epochs = args.early_stopping_epochs
-    exclude_labels = args.exclude_labels
 
     # Append timestamp to the model name
     now = datetime.now()
@@ -63,7 +116,6 @@ def main():
     logger.info(f"Raw data paths: {[p.as_posix() for p in raw_data]}")
     logger.info(f"Filtered data path: {filter_data}")
     logger.info(f"Remap classes: {remap}")
-    logger.info(f"Exclude labels: {exclude_labels}")
     logger.info(f"Loss history file: {loss_history_file}")
     logger.info("==========================================================================")
     logger.info(f"Remove the loss history file and filtered data path if you want to restart training, e.g. rm {loss_history_file} && rm -rf {filter_data}")
@@ -75,26 +127,27 @@ def main():
             remap = json.load(f)
 
     # Create the dataset from the raw dataset(s)
-    ds_splits, id2label, label2id, image_mean, image_std = create_dataset(logger, remove_long_tail, raw_data, filter_data, remap, exclude_labels)
+    ds_splits, id2label, label2id, image_mean, image_std = create_dataset(logger, remove_long_tail, raw_data, filter_data, remap)
 
     # The id2label and label2id are used to convert the labels to and from the model's internal representation
     # These are stored in the HuggingFace config.json file with the model, e.g. mbari-uav-vit-b-16/config.json
     model = AutoModelForImageClassification.from_pretrained(base_model,
-                                                            num_labels=len(label2id.keys()),
-                                                            id2label=id2label,
-                                                            label2id=label2id,
-                                                            ignore_mismatched_sizes=True,
-                                                            )
+                                                             num_labels=len(label2id.keys()),
+                                                             id2label=id2label,
+                                                             label2id=label2id,
+                                                             ignore_mismatched_sizes=True,
+                                                             )
 
     train_ds = ds_splits['train']
     val_ds = ds_splits['valid']
     test_ds = ds_splits['test']
 
     # Image processor and transforms - these differ for each model
-    processor = AutoProcessor.from_pretrained(base_model, use_fast=True)
-    if hasattr(processor, "crop_size"):
+    processor = AutoImageProcessor.from_pretrained(base_model, use_fast=True)
+
+    if hasattr(processor, "crop_size") and processor.crop_size is not None:
         size = processor.crop_size["height"]
-    elif hasattr(processor, "size"):
+    elif hasattr(processor, "size") and processor.size is not None:
         size = processor.size["height"]
     else:
         logger.error(f"No crop size found in processor. Using default size of 224.")
@@ -280,6 +333,20 @@ def main():
     precision = precision_score(y_true, y_pred, average='micro')
     recall = recall_score(y_true, y_pred, average='micro')
     logger.info(f"Accuracy: {accuracy:.2f}, Precision: {precision:.2f}, Recall: {recall:.2f}")
+
+    # Find optimal thresholds per class using F1 maximization
+    class_names = list(id2label.values())
+    optimal_thresholds = find_optimal_thresholds(y_true, y_prob, class_names)
+
+    # Save optimal thresholds to CSV
+    csv_filename = Path(model_name) / f"optimal_thresholds_{model_name}_{datetime.now():%Y%m%d_%H%M%S}.csv"
+    with open(csv_filename, 'w', newline='') as csvfile:
+        fieldnames = ['class_name', 'class_id', 'f1_score', 'support', 'threshold']
+        writer = csv.DictWriter(csvfile, fieldnames=fieldnames)
+        writer.writeheader()
+        writer.writerows(optimal_thresholds)
+
+    logger.info(f"Optimal thresholds saved to {csv_filename}")
 
     all_labels = id2label.values()
     cm = confusion_matrix(y_true, y_pred, labels=range(len(all_labels)))
