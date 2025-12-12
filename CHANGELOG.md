@@ -2,6 +2,13 @@
 
 
 
+## v0.7.0 (2025-12-12)
+
+### Feature
+
+* feat: add export of best threshold for maximum F1 score for use in pseudo-labeling workflows ([`86887f6`](https://github.com/mbari-org/vitstrain/commit/86887f6c565f11dd155bfb74972e5a693f9998ea))
+
+
 ## v0.6.0 (2025-10-09)
 
 ### Feature
