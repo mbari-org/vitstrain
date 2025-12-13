@@ -94,6 +94,7 @@ def main():
     base_model = args.base_model
     remap = args.remap
     raw_data = [Path(path) for path in args.raw_data]
+    exclude_labels = args.exclude_labels if args.exclude_labels else []
     filter_data = Path(args.filter_data)
     num_epochs = args.num_epochs
     early_stopping_epochs = args.early_stopping_epochs
@@ -114,6 +115,7 @@ def main():
     logger.info(f"Model name: {model_name}")
     logger.info(f"Base model: {base_model}")
     logger.info(f"Raw data paths: {[p.as_posix() for p in raw_data]}")
+    logger.info(f"Excluded labels: {exclude_labels}")
     logger.info(f"Filtered data path: {filter_data}")
     logger.info(f"Remap classes: {remap}")
     logger.info(f"Loss history file: {loss_history_file}")
@@ -127,13 +129,14 @@ def main():
             remap = json.load(f)
 
     # Create the dataset from the raw dataset(s)
-    ds_splits, id2label, label2id, image_mean, image_std = create_dataset(logger, remove_long_tail, raw_data, filter_data, remap)
+    ds_splits, id2label, label2id, image_mean, image_std = create_dataset(logger, remove_long_tail, raw_data, filter_data, remap, exclude_labels)
 
     # The id2label and label2id are used to convert the labels to and from the model's internal representation
     # These are stored in the HuggingFace config.json file with the model, e.g. mbari-uav-vit-b-16/config.json
     model = AutoModelForImageClassification.from_pretrained(base_model,
                                                              num_labels=len(label2id.keys()),
                                                              id2label=id2label,
+                                                             device_map="auto",
                                                              label2id=label2id,
                                                              ignore_mismatched_sizes=True,
                                                              )
