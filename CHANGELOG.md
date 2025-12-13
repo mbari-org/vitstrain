@@ -2,6 +2,13 @@
 
 
 
+## v0.7.1 (2025-12-13)
+
+### Fix
+
+* fix: pass through label exclusion correctly ([`7840304`](https://github.com/mbari-org/vitstrain/commit/7840304a054e3dd74fc3a6e1a2265d42d86721fd))
+
+
 ## v0.7.0 (2025-12-12)
 
 ### Feature
