@@ -98,6 +98,7 @@ def main():
     filter_data = Path(args.filter_data)
     num_epochs = args.num_epochs
     early_stopping_epochs = args.early_stopping_epochs
+    min_images_per_class = args.min_images_per_class
 
     # Append timestamp to the model name
     now = datetime.now()
@@ -110,6 +111,7 @@ def main():
     logger.info(f"=========================vitstrain v{__version__}========================================")
     logger.info(f"Number of epochs: {num_epochs}")
     logger.info(f"Remove long-tail classes: {remove_long_tail}")
+    logger.info(f"Minimum images per class: {min_images_per_class}")
     logger.info(f"Add rotations: {add_rotations}")
     logger.info(f"Early stopping epochs: {early_stopping_epochs}")
     logger.info(f"Model name: {model_name}")
@@ -129,7 +131,7 @@ def main():
             remap = json.load(f)
 
     # Create the dataset from the raw dataset(s)
-    ds_splits, id2label, label2id, image_mean, image_std = create_dataset(logger, remove_long_tail, raw_data, filter_data, remap, exclude_labels)
+    ds_splits, id2label, label2id, image_mean, image_std = create_dataset(logger, remove_long_tail, raw_data, filter_data, remap, exclude_labels, min_images_per_class)
 
     # The id2label and label2id are used to convert the labels to and from the model's internal representation
     # These are stored in the HuggingFace config.json file with the model, e.g. mbari-uav-vit-b-16/config.json

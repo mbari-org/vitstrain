@@ -54,7 +54,8 @@ def compute_mean_std(dataset):
 
 
 def create_dataset(logger: Logger, remove_long_tail: bool, raw_dataset_paths: List[Path], train_dataset_root: Path,
-                   remap_class: Dict[str, str] = None, exclude_labels: List[str] = None):
+                   remap_class: Dict[str, str] = None, exclude_labels: List[str] = None,
+                   min_images_per_class: int = 10):
     if train_dataset_root.exists():
         logger.info(f"Removing existing dataset at {train_dataset_root}")
         shutil.rmtree(train_dataset_root)
@@ -110,12 +111,12 @@ def create_dataset(logger: Logger, remove_long_tail: bool, raw_dataset_paths: Li
     deleted_labels = {}
     if remove_long_tail:
         # This is to avoid overfitting on labels with very few examples
-        # Count the number of images in each label and remove labels with less than 10 images
+        # Count the number of images in each label and remove labels with less than min_images_per_class images
         revised_stats = {}
         for d in train_dataset_root.iterdir():
             if d.is_dir():
                 count = len(list(d.glob('*')))
-                if count < 10:
+                if count < min_images_per_class:
                     logger.info(f"Removing label {d.name} with {count} images")
                     shutil.rmtree(d)
                     deleted_labels[d.name] = count
@@ -124,14 +125,14 @@ def create_dataset(logger: Logger, remove_long_tail: bool, raw_dataset_paths: Li
                     revised_stats[d.name] = count
         combined_stats = revised_stats
 
-    # Using PIL, augment by random cropping with overlap for all classes with fewer than 10 examples
-    # so that there are at least 10 examples per class
+    # Using PIL, augment by random cropping with overlap for all classes with fewer than min_images_per_class examples
+    # so that there are at least min_images_per_class examples per class
     for d in train_dataset_root.iterdir():
         if d.is_dir():
             count = len(list(d.glob('*')))
-            if count < 10 and count > 0:
+            if count < min_images_per_class and count > 0:
                 images = list(d.glob('*'))
-                augment_count = 10 - count
+                augment_count = min_images_per_class - count
                 logger.info(f"Augmenting label {d.name} with {count} images to {count + augment_count} images")
                 for i in range(augment_count):
                     image_path = images[i % count]

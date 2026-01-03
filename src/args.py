@@ -16,6 +16,12 @@ def parse_args():
         help="Set to true to truncate the long-tail classes.",
     )
     parser.add_argument(
+        "--min-images-per-class",
+        type=int,
+        default=10,
+        help="The minimum number of images per class. If a class has fewer than this, it will be removed if --remove-long-tail is set, or augmented if it is not.",
+    )
+    parser.add_argument(
         "--remap",
         type=str,
         help="Path to a JSON file that maps the original class names to new class names.",
