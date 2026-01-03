@@ -64,11 +64,11 @@ The stats.json file should contain the following information:
 ### Step 2. Train the model
 
 ```bash
-python src/fine_tune_vit.py \
+python src/fine_tune_vits.py \
         --raw-data $PWD/data/crops \
         --base-model google/vit-base-patch16-224-in21k
         --model-name catsdogs-vit-b16 \
-        --epochs 5
+        --num-epochs 5
 ```
 
 Example output:
