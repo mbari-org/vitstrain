@@ -9,6 +9,7 @@ DATA_PATH = Path(__file__).parent.parent / "data"
 
 def parse_args():
     parser = argparse.ArgumentParser(description="Train an image classification Vision Transformer (ViTS) model.")
+
     parser.add_argument(
         "--train-only",
         action="store_true",
@@ -86,4 +87,34 @@ def parse_args():
         default=None,
         help="Labels to exclude from training (space-separated if multiple labels).",
     )
+    parser.add_argument(
+        "--lr",
+        "--learning-rate",
+        dest="learning_rate",
+        type=float,
+        default=5e-5,
+        help="Base learning rate.",
+    )
+    parser.add_argument(
+        "--lr-scaling",
+        choices=("none", "linear", "sqrt"),
+        default="none",
+        help="Learning-rate scaling heuristic based on effective batch size.",
+    )
+    parser.add_argument(
+        "--batch-size",
+        type=int,
+        default=8,
+        help="Training batch size (per device).",
+    )
+    parser.add_argument(
+        "--gradient-accumulation-steps",
+        type=int,
+        default=4,
+        help=(
+            "Number of batches to accumulate gradients over before updating the model."
+            "See Hugging Face TrainingArguments.gradient_accumulation_steps for more info."
+        ),
+    )
+
     return parser.parse_args()

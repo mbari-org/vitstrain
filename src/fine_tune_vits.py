@@ -1,9 +1,12 @@
 # vitstrain
 # Filename: src/fine_tune_vits.py
 # Description: Fine-tuning a Vision Transformer model
+
+import os
 import logging
 from datetime import datetime
 from pathlib import Path
+from typing import Literal
 import albumentations as A
 from albumentations.pytorch import ToTensorV2
 import json
@@ -24,6 +27,9 @@ from model_factory import create_model, export_onnx
 from plot_utils import plot_multiclass_pr_curves
 from version import __version__
 import matplotlib.pyplot as plt
+
+
+BASE_BATCH_SIZE = 32
 
 # Configure logger
 logger = logging.getLogger(__name__)
@@ -181,6 +187,29 @@ def get_image_size(processor):
 
     return 224
 
+
+def scale_lr(
+    lr: float,
+    batch_size: int,
+    base_batch_size: int = 32,
+    mode: Literal["none", "linear", "sqrt"] = "none"
+) -> float:
+    """Scale learning rate with the effective `batch_size`."""
+
+    if mode == "none":
+        return lr
+
+    scale = batch_size / base_batch_size
+
+    if mode == "linear":
+        return lr * scale
+
+    if mode == "sqrt":
+        return lr * (scale ** 0.5)
+
+    raise ValueError(f"Unknown LR scaling mode: {mode}")
+
+
 # Main function
 def main():
     args = parse_args()
@@ -199,7 +228,24 @@ def main():
     early_stopping_epochs = args.early_stopping_epochs
     min_images_per_class = args.min_images_per_class
     export_to_onnx = args.export_onnx
+    per_device_batch_size = args.batch_size
+    gradient_accumulation_steps = args.gradient_accumulation_steps
     # todo: add freeze_backbone as cli flag (default currently False)
+
+    num_devices = int(os.environ.get("WORLD_SIZE", "1"))
+
+    effective_bs = (
+        per_device_batch_size
+        * num_devices
+        * gradient_accumulation_steps
+    )
+    scaled_lr = scale_lr(
+        lr=args.learning_rate,
+        batch_size=effective_bs,
+        base_batch_size=BASE_BATCH_SIZE,
+        mode=args.lr_scaling,
+    )
+    auto_find_batch_size = args.lr_scaling == "none"  # avoid resize after scaling
 
     # Append timestamp to the model name
     now = datetime.now()
@@ -226,6 +272,14 @@ def main():
     logger.info(f"Split JSON path: {split_json_path}")
     logger.info(f"Remap classes: {remap}")
     logger.info(f"Train only (skip data prep): {train_only}")
+    logger.info(f"Base LR: {args.learning_rate}")
+    logger.info(f"LR Scaling: {args.lr_scaling}")
+    logger.info(f"Base BS: {BASE_BATCH_SIZE}")
+    logger.info(f"Per-device BS: {per_device_batch_size}")
+    logger.info(f"Gradient accumulation: {gradient_accumulation_steps}")
+    logger.info(f"Number of devices: {num_devices}")
+    logger.info(f"Effective BS: {effective_bs}")
+    logger.info(f"Scaled LR: {scaled_lr}")
     logger.info(f"Export to ONNX: {export_to_onnx}")
     logger.info(f"Loss history file: {loss_history_file}")
     logger.info("==========================================================================")
@@ -376,17 +430,18 @@ def main():
         model_name,
         save_strategy="epoch",
         eval_strategy="epoch",
-        learning_rate=5e-5,
+        learning_rate=scaled_lr,
         num_train_epochs=num_epochs,
         warmup_ratio=0.1,
-        gradient_accumulation_steps=4,
+        gradient_accumulation_steps=gradient_accumulation_steps,
+        per_device_train_batch_size=per_device_batch_size,
         save_total_limit=1,
         load_best_model_at_end=True,
         metric_for_best_model="accuracy",
         logging_dir='logs',
         logging_steps=10,  # Log every 10 steps
         remove_unused_columns=False,
-        auto_find_batch_size=True,
+        auto_find_batch_size=auto_find_batch_size,
     )
 
     trainer = CustomTrainer(
