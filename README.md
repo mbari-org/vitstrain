@@ -100,6 +100,24 @@ input at the resolution the model was trained at, with a dynamic batch dimension
 `logits`. After exporting, the outputs are compared against PyTorch and the difference is
 reported in the training log.
 
+To add rebalanced supervised contrastive (SupCon) loss on backbone embeddings — useful for
+long-tailed datasets — pass `--use-supcon`. This is combined with the existing focal
+classification loss so the classifier head still trains:
+
+```bash
+python src/fine_tune_vits.py \
+        --raw-data $PWD/data/crops \
+        --base-model google/vit-base-patch16-224-in21k \
+        --model-name catsdogs-vit-b16 \
+        --num-epochs 5 \
+        --use-supcon \
+        --supcon-temperature 0.07 \
+        --supcon-weight 1.0
+```
+
+Rare classes are up-weighted so their embeddings are pulled tighter. Larger batches give
+SupCon more same-class pairs; gradient accumulation does not enlarge the contrastive batch.
+
 Example output (`model.onnx` only when `--export-onnx` is used):
 ```text
 catsdogs-vit-b16-20250828
@@ -157,4 +175,4 @@ python src/fine_tune_vit.py \
 ![docs/imgs/loss_curve.png](./docs/imgs/loss_curve.png)
 ![docs/imgs/pr_curves.png](./docs/imgs/pr_curves.png)
 
-last updated: 2026-08-05
+last updated: 2026-09-13

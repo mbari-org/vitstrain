@@ -17,10 +17,12 @@ import torch.nn.functional as F
 from transformers import TrainingArguments, Trainer, AutoImageProcessor
 from transformers import TrainerCallback, EarlyStoppingCallback
 from transformers.trainer_utils import get_last_checkpoint
+from transformers.modeling_outputs import ImageClassifierOutput
 from sklearn.metrics import confusion_matrix
 from args import parse_args
 from data_utils import collate_fn, create_dataset, load_prepared_dataset
-from model_factory import create_model, export_onnx
+from losses import RebalancedContrastiveLoss
+from model_factory import create_model, export_onnx, forward_logits_and_features
 from plot_utils import plot_multiclass_pr_curves
 from version import __version__
 import matplotlib.pyplot as plt
@@ -199,6 +201,9 @@ def main():
     early_stopping_epochs = args.early_stopping_epochs
     min_images_per_class = args.min_images_per_class
     export_to_onnx = args.export_onnx
+    use_supcon = args.use_supcon
+    supcon_temperature = args.supcon_temperature
+    supcon_weight = args.supcon_weight
     # todo: add freeze_backbone as cli flag (default currently False)
 
     # Append timestamp to the model name
@@ -227,6 +232,10 @@ def main():
     logger.info(f"Remap classes: {remap}")
     logger.info(f"Train only (skip data prep): {train_only}")
     logger.info(f"Export to ONNX: {export_to_onnx}")
+    logger.info(f"Use SupCon: {use_supcon}")
+    if use_supcon:
+        logger.info(f"SupCon temperature: {supcon_temperature}")
+        logger.info(f"SupCon weight: {supcon_weight}")
     logger.info(f"Loss history file: {loss_history_file}")
     logger.info("==========================================================================")
     logger.info(f"Remove the loss history file and filtered data path if you want to restart training, e.g. rm {loss_history_file} && rm -rf {filter_data}")
@@ -260,6 +269,11 @@ def main():
     train_ds = ds_splits['train']
     val_ds   = ds_splits['valid']
     test_ds  = ds_splits['test']
+
+    cls_num_list = None
+    if use_supcon:
+        cls_num_list = np.bincount(np.asarray(train_ds["label"]), minlength=len(id2label)).tolist()
+        logger.info(f"SupCon class counts (train split): {cls_num_list}")
 
     # Create Model.
     model = create_model(logger, base_model, id2label)
@@ -322,16 +336,25 @@ def main():
 
 
     class CustomTrainer(Trainer):
-        def __init__(self, *args, **kwargs):
+        def __init__(self, *args, supcon_loss=None, supcon_weight=1.0, **kwargs):
             super().__init__(*args, **kwargs)
             self.focal_loss = FocalLoss()
+            self.supcon_loss = supcon_loss
+            self.supcon_weight = supcon_weight
 
         def compute_loss(self, model, inputs, return_outputs=False, **kwargs):
             labels = inputs.pop("labels")
-            outputs = model(**inputs)
-            logits = outputs.logits
-            loss = self.focal_loss(logits, labels)
+            if self.supcon_loss is None:
+                outputs = model(**inputs)
+                logits = outputs.logits
+                loss = self.focal_loss(logits, labels)
+                return (loss, outputs) if return_outputs else loss
 
+            inner = self.accelerator.unwrap_model(model)
+            logits, features = forward_logits_and_features(inner, inputs["pixel_values"])
+            loss = self.focal_loss(logits, labels)
+            loss = loss + self.supcon_weight * self.supcon_loss(features, labels)
+            outputs = ImageClassifierOutput(loss=loss, logits=logits)
             return (loss, outputs) if return_outputs else loss
 
     class LossLoggerCallback(TrainerCallback):
@@ -389,6 +412,10 @@ def main():
         auto_find_batch_size=True,
     )
 
+    supcon_loss = None
+    if use_supcon:
+        supcon_loss = RebalancedContrastiveLoss(cls_num_list, temperature=supcon_temperature)
+
     trainer = CustomTrainer(
         model=model,
         args=train_args,
@@ -398,6 +425,8 @@ def main():
         compute_metrics=compute_metrics,
         processing_class=processor,
         callbacks=[loss_logger, early_stopping],
+        supcon_loss=supcon_loss,
+        supcon_weight=supcon_weight,
     )
 
     checkpoint = get_last_checkpoint(model_name)

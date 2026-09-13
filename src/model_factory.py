@@ -65,6 +65,25 @@ def extract_features(outputs):
     raise RuntimeError(f"Unsupported output type: {type(outputs)}")
 
 
+def forward_logits_and_features(model, pixel_values):
+    """Run one backbone pass and return classifier logits plus pre-head embeddings.
+
+    Contrastive losses operate on the embeddings; classification still uses the same
+    dropout + linear head path as a normal forward.
+    """
+    if not hasattr(model, "base_model") or not hasattr(model, "classifier"):
+        raise RuntimeError(
+            f"{model.__class__.__name__} does not expose base_model/classifier; "
+            "cannot extract embeddings for SupCon."
+        )
+
+    outputs = model.base_model(pixel_values=pixel_values)
+    features = extract_features(outputs)
+    head_input = model.dropout(features) if hasattr(model, "dropout") else features
+    logits = model.classifier(head_input)
+    return logits, features
+
+
 def backbone_classifier_class(backbone_cls):
     """Builds a PreTrainedModel classification wrapper around a backbone-only model class.
 

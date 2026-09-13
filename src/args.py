@@ -86,4 +86,25 @@ def parse_args():
         default=None,
         help="Labels to exclude from training (space-separated if multiple labels).",
     )
+    parser.add_argument(
+        "--use-supcon",
+        action="store_true",
+        help=(
+            "Add rebalanced supervised contrastive (SupCon) loss on backbone embeddings, "
+            "combined with the existing focal classification loss. "
+            "Uses inverse class-frequency weights so tail classes are pulled tighter."
+        ),
+    )
+    parser.add_argument(
+        "--supcon-temperature",
+        type=float,
+        default=0.07,
+        help="Temperature for the SupCon similarity logits (used with --use-supcon).",
+    )
+    parser.add_argument(
+        "--supcon-weight",
+        type=float,
+        default=1.0,
+        help="Weight of the SupCon term when combined with focal loss (used with --use-supcon).",
+    )
     return parser.parse_args()
