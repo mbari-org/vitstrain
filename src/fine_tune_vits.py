@@ -183,6 +183,25 @@ def get_image_size(processor):
 
     return 224
 
+
+def _albumentations_at_least(major, minor=0):
+    parts = A.__version__.split(".")
+    return (int(parts[0]), int(parts[1])) >= (major, minor)
+
+
+def random_resized_crop(crop_size, scale=(0.2, 1.0), p=1.0):
+    """RandomResizedCrop compatible with albumentations 1.x (height/width) and 2.x (size)."""
+    if _albumentations_at_least(2):
+        return A.RandomResizedCrop(size=(crop_size, crop_size), scale=scale, p=p)
+    return A.RandomResizedCrop(height=crop_size, width=crop_size, scale=scale, p=p)
+
+
+def rotate(limit, interpolation=1, border_mode=4, p=1):
+    """Rotate compatible with albumentations 1.x (value) and 2.x (fill)."""
+    if _albumentations_at_least(2):
+        return A.Rotate(limit=limit, interpolation=interpolation, border_mode=border_mode, fill=0, p=p)
+    return A.Rotate(limit=limit, interpolation=interpolation, border_mode=border_mode, value=None, p=p)
+
 # Main function
 def main():
     args = parse_args()
@@ -286,17 +305,17 @@ def main():
     size = get_image_size(processor)
 
     _train_transforms = A.Compose([  # todo: p=1 for rotations --> 90 + 180 + 270 == 180 ?
-        A.RandomResizedCrop(height=size, width=size, scale=(0.2, 1.0), p=1.0),
-        *([A.Rotate(limit=90,  interpolation=1, border_mode=4, value=None, p=1)] if add_rotations else []),
-        *([A.Rotate(limit=180, interpolation=1, border_mode=4, value=None, p=1)] if add_rotations else []),
-        *([A.Rotate(limit=270, interpolation=1, border_mode=4, value=None, p=1)] if add_rotations else []),
+        random_resized_crop(size, scale=(0.2, 1.0), p=1.0),
+        *([rotate(limit=90)] if add_rotations else []),
+        *([rotate(limit=180)] if add_rotations else []),
+        *([rotate(limit=270)] if add_rotations else []),
         A.GaussianBlur(blur_limit=(3, 7), sigma_limit=0.1, p=0.5),
         A.Normalize(mean=image_mean, std=image_std),
         ToTensorV2(),
     ])
 
     _val_transforms = A.Compose([  # todo: fix randomness in validation ?
-        A.RandomResizedCrop(height=size, width=size, scale=(0.2, 1.0), p=1.0),
+        random_resized_crop(size, scale=(0.2, 1.0), p=1.0),
         A.Normalize(mean=image_mean, std=image_std),
         ToTensorV2(),
     ])
