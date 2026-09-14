@@ -161,23 +161,32 @@ def find_optimal_thresholds(y_true, y_prob, class_names, thresholds=np.arange(0.
     return optimal_thresholds
 
 
+def _as_int_size(value):
+    """Normalize processor crop/size fields to a single integer edge length."""
+    if value is None:
+        return None
+    if isinstance(value, bool):
+        return None
+    if isinstance(value, (int, float)):
+        return int(value)
+    if isinstance(value, (tuple, list)):
+        return int(value[0])
+    for key in ("height", "shortest_edge", "width"):
+        attr = getattr(value, key, None)
+        if attr is not None:
+            return int(attr)
+        if isinstance(value, dict) and value.get(key) is not None:
+            return int(value[key])
+    return None
+
+
 def get_image_size(processor):
     """Returns the image size from the processor configuration. Falls back to 224."""
 
-    if getattr(processor, "crop_size") is not None:
-        crop_size = processor.crop_size
-        if isinstance(crop_size, dict):
-            return crop_size["height"]
-        return crop_size
-
-    if getattr(processor, "size") is not None:
-        size = processor.size
-        if isinstance(size, dict):
-            if "height" in size:
-                return size["height"]
-            if "shortest_edge" in size:
-                return size["shortest_edge"]
-        return size
+    for attr in ("crop_size", "size"):
+        size = _as_int_size(getattr(processor, attr, None))
+        if size is not None:
+            return size
 
     logger.error("No crop size found in processor. Using default size of 224.")
 
@@ -191,6 +200,7 @@ def _albumentations_at_least(major, minor=0):
 
 def random_resized_crop(crop_size, scale=(0.2, 1.0), p=1.0):
     """RandomResizedCrop compatible with albumentations 1.x (height/width) and 2.x (size)."""
+    crop_size = _as_int_size(crop_size)
     if _albumentations_at_least(2):
         return A.RandomResizedCrop(size=(crop_size, crop_size), scale=scale, p=p)
     return A.RandomResizedCrop(height=crop_size, width=crop_size, scale=scale, p=p)
@@ -298,7 +308,10 @@ def main():
     model = create_model(logger, base_model, id2label)
 
     # Configure Preprocessing.
-    processor = AutoImageProcessor.from_pretrained(base_model, use_fast=True)
+    try:
+        processor = AutoImageProcessor.from_pretrained(base_model, backend="torchvision")
+    except TypeError:
+        processor = AutoImageProcessor.from_pretrained(base_model, use_fast=True)
     processor.image_mean = image_mean
     processor.image_std = image_std
 
