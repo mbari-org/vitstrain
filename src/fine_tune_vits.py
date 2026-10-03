@@ -317,12 +317,16 @@ def main():
 
     size = get_image_size(processor)
 
+    # SimCLR-style train augs (Chen et al.): crop, flip, color jitter, blur.
+    # Grayscale and solarization are omitted — they destroy hue, which this data cannot use.
     _train_transforms = A.Compose([  # todo: p=1 for rotations --> 90 + 180 + 270 == 180 ?
         random_resized_crop(size, scale=(0.2, 1.0), p=1.0),
         *([rotate(limit=90)] if add_rotations else []),
         *([rotate(limit=180)] if add_rotations else []),
         *([rotate(limit=270)] if add_rotations else []),
-        A.GaussianBlur(blur_limit=(3, 7), sigma_limit=0.1, p=0.5),
+        A.HorizontalFlip(p=0.5),
+        A.ColorJitter(brightness=0.8, contrast=0.8, saturation=0.8, hue=0.2, p=0.8),
+        A.GaussianBlur(blur_limit=(3, 7), sigma_limit=(0.1, 2.0), p=0.5),
         A.Normalize(mean=image_mean, std=image_std),
         ToTensorV2(),
     ])
