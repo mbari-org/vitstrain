@@ -132,6 +132,26 @@ def parse_args():
         help="Export the trained model to ONNX in the model output directory.",
     )
     parser.add_argument(
+        "--depth-csv",
+        type=str,
+        default=None,
+        help=(
+            "Path to a CSV with columns 'roi' and 'depth' (meters) giving the depth each ROI was imaged at. "
+            "'roi' is the crop filename or its stem (e.g. the localization UUID). When set, depth is fed to the "
+            "classification head alongside the image features; ROIs missing from the CSV are treated as unknown depth. "
+            "Forces the backbone-only model path (AutoModel + custom head)."
+        ),
+    )
+    parser.add_argument(
+        "--depth-dropout",
+        type=float,
+        default=0.1,
+        help=(
+            "Probability of hiding an ROI's depth during training, so the model still works when depth is unknown "
+            "and doesn't lean on depth alone. Only used with --depth-csv."
+        ),
+    )
+    parser.add_argument(
         "--exclude-labels",
         type=str,
         nargs="+",

@@ -2,6 +2,7 @@
 # Filename: src/data_utils.py
 # Description: Data utilities for preparing image datasets for training Vision Transformer models
 
+import re
 import shutil
 from logging import Logger
 from pathlib import Path
@@ -9,9 +10,10 @@ from PIL import ImageStat, Image
 import tqdm
 import json
 import numpy as np
+import pandas as pd
 import torch
 from typing import List, Dict
-from datasets import load_dataset, DatasetDict
+from datasets import load_dataset, Dataset, DatasetDict, Image as ImageFeature
 from sklearn.model_selection import train_test_split
 from datetime import datetime
 from typing import Optional
@@ -63,7 +65,56 @@ def build_label_maps(logger: Logger, ds: DatasetDict, combined_stats: Dict[str, 
 def collate_fn(examples):
     pixel_values = torch.stack([example["pixel_values"] for example in examples])
     labels = torch.tensor([example["label"] for example in examples])
-    return {"pixel_values": pixel_values, "labels": labels}
+    batch = {"pixel_values": pixel_values, "labels": labels}
+    if "depth" in examples[0]:
+        # NaN marks an unknown depth; the model turns it into a "missing" flag
+        batch["depth"] = torch.tensor([example["depth"] for example in examples], dtype=torch.float32)
+    return batch
+
+
+# Augmented copies made in create_dataset are named <stem>_aug_<i>
+AUG_SUFFIX_RE = re.compile(r"_aug_\d+$")
+
+
+def load_depth_table(depth_csv: Path) -> Dict[str, float]:
+    """Reads a CSV with 'roi' and 'depth' columns into a {roi filename stem: depth in meters} lookup."""
+    df = pd.read_csv(depth_csv)
+    missing_cols = {"roi", "depth"} - set(df.columns)
+    if missing_cols:
+        raise ValueError(f"{depth_csv} is missing required column(s): {sorted(missing_cols)}")
+    stems = df["roi"].astype(str).map(lambda r: Path(r).stem)
+    return dict(zip(stems, df["depth"].astype(float)))
+
+
+def attach_depth(logger: Logger, ds_splits: DatasetDict, depth_csv: Path) -> DatasetDict:
+    """
+    Adds a float 'depth' column to every split, looked up by ROI filename stem.
+    ROIs not in the table (or with a blank depth) get NaN, i.e. unknown depth.
+    """
+    depth_by_roi = load_depth_table(depth_csv)
+    logger.info(f"Loaded depth for {len(depth_by_roi)} ROIs from {depth_csv}")
+
+    out = {}
+    for split, ds in ds_splits.items():
+        # Read only the file paths; decoding every image just to get its name is slow
+        paths = ds.cast_column("image", ImageFeature(decode=False))["image"]
+        depths = []
+        for p in paths:
+            stem = AUG_SUFFIX_RE.sub("", Path(p["path"]).stem)
+            depths.append(float(depth_by_roi.get(stem, np.nan)))
+        n_known = int(np.sum(~np.isnan(depths)))
+        logger.info(f"{split}: depth known for {n_known}/{len(depths)} ROIs")
+        out[split] = ds.add_column("depth", depths)
+    return DatasetDict(out)
+
+
+def depth_stats(ds: Dataset) -> tuple[float, float]:
+    """Mean and std of the known depths in a split, used to normalize depth inside the model."""
+    d = np.array(ds["depth"], dtype=np.float64)
+    d = d[~np.isnan(d)]
+    if len(d) == 0:
+        raise ValueError("No ROI in the training split has a known depth; check the --depth-csv 'roi' values.")
+    return float(d.mean()), float(max(d.std(), 1e-6))
 
 
 def compute_mean_std(dataset):

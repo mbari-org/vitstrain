@@ -12,6 +12,11 @@ from transformers import AutoConfig, AutoModel, AutoModelForImageClassification,
 from transformers.modeling_outputs import ImageClassifierOutput
 
 DEFAULT_CLASSIFIER_DROPOUT = 0.1
+DEFAULT_DEPTH_EMBED_DIM = 16
+
+# ViT/DeiT classifiers use the CLS token directly; their checkpoints have no trained pooler,
+# so building one would add randomly initialized weights in front of the head
+NO_POOLER_MODEL_TYPES = ("vit", "deit")
 
 
 def get_hidden_size(logger: Logger, model):
@@ -65,6 +70,35 @@ def extract_features(outputs):
     raise RuntimeError(f"Unsupported output type: {type(outputs)}")
 
 
+class DepthEncoder(nn.Module):
+    """
+    Embeds a per-ROI depth (meters) as a small feature vector for the classification head.
+
+    Input is [z-scored depth, missing flag]; NaN depth means unknown. The normalization stats are
+    buffers, so they are saved with the model and reused at inference.
+    """
+
+    def __init__(self, depth_mean, depth_std, embed_dim=DEFAULT_DEPTH_EMBED_DIM, depth_dropout=0.1):
+        super().__init__()
+        self.register_buffer("depth_mean", torch.tensor(float(depth_mean)))
+        self.register_buffer("depth_std", torch.tensor(float(depth_std)))
+        self.depth_dropout = depth_dropout
+        self.mlp = nn.Sequential(nn.Linear(2, embed_dim), nn.GELU(), nn.Linear(embed_dim, embed_dim))
+
+    def forward(self, depth):
+        missing = torch.isnan(depth)
+        if self.training and self.depth_dropout > 0:
+            # Hide some known depths so the head also learns the image-only case
+            missing = missing | (torch.rand_like(depth) < self.depth_dropout)
+        z = torch.where(missing, torch.zeros_like(depth), (depth - self.depth_mean) / self.depth_std)
+        return self.mlp(torch.stack([z, missing.float()], dim=-1))
+
+
+def backbone_kwargs(config):
+    """Extra constructor arguments for a backbone, so it is built the same way at training and load time."""
+    return {"add_pooling_layer": False} if config.model_type in NO_POOLER_MODEL_TYPES else {}
+
+
 def backbone_classifier_class(backbone_cls):
     """Builds a PreTrainedModel classification wrapper around a backbone-only model class.
 
@@ -86,13 +120,26 @@ def backbone_classifier_class(backbone_cls):
 
         def __init__(self, config, backbone=None):
             super().__init__(config)
-            setattr(self, prefix, backbone if backbone is not None else backbone_cls(config))
+            setattr(self, prefix, backbone if backbone is not None else backbone_cls(config, **backbone_kwargs(config)))
             self.dropout = nn.Dropout(getattr(config, "classifier_dropout", DEFAULT_CLASSIFIER_DROPOUT))
-            self.classifier = nn.Linear(config.classifier_input_size, config.num_labels)
 
-        def forward(self, pixel_values, labels=None):
+            # Optional ROI-depth conditioning; its settings live in the config so load_model() rebuilds it
+            self.depth_encoder = None
+            depth_dim = getattr(config, "depth_embed_dim", None) or 0
+            if depth_dim:
+                self.depth_encoder = DepthEncoder(
+                    config.depth_mean, config.depth_std, embed_dim=depth_dim, depth_dropout=config.depth_dropout
+                )
+
+            self.classifier = nn.Linear(config.classifier_input_size + depth_dim, config.num_labels)
+
+        def forward(self, pixel_values, labels=None, depth=None):
             outputs = self.base_model(pixel_values=pixel_values)
             features = self.dropout(extract_features(outputs))
+            if self.depth_encoder is not None:
+                if depth is None:
+                    depth = torch.full(features.shape[:1], float("nan"), device=features.device)
+                features = torch.cat([features, self.depth_encoder(depth.to(features.dtype))], dim=-1)
             logits = self.classifier(features)
             loss = F.cross_entropy(logits, labels) if labels is not None else None
 
@@ -115,33 +162,44 @@ def backbone_classifier_class(backbone_cls):
     return BackboneClassifier
 
 
-def create_model(logger: Logger, model_name, id2label, freeze_backbone=False, dropout=DEFAULT_CLASSIFIER_DROPOUT):
-    """Creates a vision classifier with the specified backbone and number of labels."""
+def create_model(logger: Logger, model_name, id2label, freeze_backbone=False, dropout=DEFAULT_CLASSIFIER_DROPOUT, depth=None):
+    """
+    Creates a vision classifier with the specified backbone and number of labels.
+
+    depth, if given, is {"mean", "std", "dropout"} for the training split's ROI depths and conditions the
+    head on depth. It always uses the backbone-only path, since the transformers classification heads can't take depth.
+    """
 
     num_classes = len(id2label)
     label2id = {v: k for k, v in id2label.items()}
 
-    try:
-        model = AutoModelForImageClassification.from_pretrained(
-            model_name,
-            num_labels=num_classes,
-            id2label=id2label,
-            label2id=label2id,
-            ignore_mismatched_sizes=True,
-        )
+    if depth is None:
+        try:
+            model = AutoModelForImageClassification.from_pretrained(
+                model_name,
+                num_labels=num_classes,
+                id2label=id2label,
+                label2id=label2id,
+                ignore_mismatched_sizes=True,
+            )
 
-        return model
+            return model
 
-    except (ValueError, OSError) as e:
-        logger.info(f"Falling back to backbone model: {e}")
+        except (ValueError, OSError) as e:
+            logger.info(f"Falling back to backbone model: {e}")
 
-    backbone = AutoModel.from_pretrained(model_name)
+    backbone = AutoModel.from_pretrained(model_name, **backbone_kwargs(AutoConfig.from_pretrained(model_name)))
 
     config = backbone.config
     config.id2label = id2label
     config.label2id = label2id
     config.classifier_dropout = dropout
     config.classifier_input_size = get_hidden_size(logger, backbone)
+    if depth is not None:
+        config.depth_embed_dim = DEFAULT_DEPTH_EMBED_DIM
+        config.depth_mean = depth["mean"]
+        config.depth_std = depth["std"]
+        config.depth_dropout = depth["dropout"]
 
     model = backbone_classifier_class(type(backbone))(config, backbone=backbone)
 
@@ -210,12 +268,14 @@ def export_onnx(logger: Logger, model, onnx_path, image_size, opset_version=17):
 def load_model(logger: Logger, model_dir):
     """Loads a classifier previously saved by fine_tune_vits.py."""
 
-    try:
-        return AutoModelForImageClassification.from_pretrained(model_dir)
-
-    except (ValueError, OSError) as e:
-        logger.info(f"Falling back to backbone classifier: {e}")
-
     config = AutoConfig.from_pretrained(model_dir)
+
+    # A depth-conditioned head only exists on the backbone classifier
+    if not getattr(config, "depth_embed_dim", None):
+        try:
+            return AutoModelForImageClassification.from_pretrained(model_dir)
+
+        except (ValueError, OSError) as e:
+            logger.info(f"Falling back to backbone classifier: {e}")
 
     return backbone_classifier_class(MODEL_MAPPING[type(config)]).from_pretrained(model_dir)

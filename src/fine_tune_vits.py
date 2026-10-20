@@ -19,7 +19,7 @@ from transformers import TrainerCallback, EarlyStoppingCallback
 from transformers.trainer_utils import get_last_checkpoint
 from sklearn.metrics import confusion_matrix
 from args import parse_args
-from data_utils import collate_fn, create_dataset, load_prepared_dataset
+from data_utils import attach_depth, collate_fn, create_dataset, depth_stats, load_prepared_dataset
 from model_factory import create_model, export_onnx
 from plot_utils import plot_multiclass_pr_curves
 from version import __version__
@@ -200,6 +200,8 @@ def main():
     min_images_per_class = args.min_images_per_class
     export_to_onnx = args.export_onnx
     # todo: add freeze_backbone as cli flag (default currently False)
+    depth_csv = Path(args.depth_csv) if args.depth_csv else None
+    depth_dropout = args.depth_dropout
 
     # Append timestamp to the model name
     now = datetime.now()
@@ -217,6 +219,9 @@ def main():
     logger.info(f"Remove long-tail classes: {remove_long_tail}")
     logger.info(f"Minimum images per class: {min_images_per_class}")
     logger.info(f"Add rotations: {add_rotations}")
+    logger.info(f"Depth CSV: {depth_csv}")
+    if depth_csv:
+        logger.info(f"Depth dropout: {depth_dropout}")
     logger.info(f"Early stopping epochs: {early_stopping_epochs}")
     logger.info(f"Model name: {model_name}")
     logger.info(f"Base model: {base_model}")
@@ -257,12 +262,19 @@ def main():
             split_json_path=split_json_path,
         )
 
+    depth = None
+    if depth_csv:
+        ds_splits = attach_depth(logger, ds_splits, depth_csv)
+        depth_mean, depth_std = depth_stats(ds_splits['train'])
+        logger.info(f"Depth mean: {depth_mean:.2f} m, std: {depth_std:.2f} m (train split)")
+        depth = {"mean": depth_mean, "std": depth_std, "dropout": depth_dropout}
+
     train_ds = ds_splits['train']
     val_ds   = ds_splits['valid']
     test_ds  = ds_splits['test']
 
     # Create Model.
-    model = create_model(logger, base_model, id2label)
+    model = create_model(logger, base_model, id2label, depth=depth)
 
     # Configure Preprocessing.
     processor = AutoImageProcessor.from_pretrained(base_model, use_fast=True)
