@@ -49,7 +49,8 @@ def str2bool(value):
     raise argparse.ArgumentTypeError(f"Expected a boolean value (True/False), got {value!r}")
 
 
-def parse_args():
+def parse_args(argv=None):
+
     parser = argparse.ArgumentParser(description="Train an image classification Vision Transformer (ViTS) model.")
     parser.add_argument(
         "--train-only",
@@ -58,7 +59,7 @@ def parse_args():
     )
     parser.add_argument(
         "--remove-long-tail",
-        type=bool,
+        type=str2bool,
         default=False,
         help="Set to true to truncate the long-tail classes.",
     )
@@ -116,7 +117,7 @@ def parse_args():
     )
     parser.add_argument(
         "--add-rotations",
-        type=bool,
+        type=str2bool,
         default=True,
         help="Set to true to add 90, 180, 270 rotations to the training images.",
     )
@@ -138,7 +139,8 @@ def parse_args():
         default=None,
         help="Labels to exclude from training (space-separated if multiple labels).",
     )
-    args = parser.parse_args()
+
+    args = parser.parse_args(argv)
 
     if args.list_models:
         print("Available --base-model aliases:")
@@ -147,4 +149,5 @@ def parse_args():
         raise SystemExit(0)
 
     args.base_model = resolve_base_model(args.base_model)
+
     return args

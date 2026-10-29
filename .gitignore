@@ -61,3 +61,5 @@ docs/site
 #expect of the code
 !src/
 !src/*.py
+!tests/
+!tests/*.py
