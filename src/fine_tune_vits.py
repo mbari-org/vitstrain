@@ -271,11 +271,10 @@ def main():
 
     size = get_image_size(processor)
 
-    _train_transforms = A.Compose([  # todo: p=1 for rotations --> 90 + 180 + 270 == 180 ?
+    _train_transforms = A.Compose([
         A.RandomResizedCrop(height=size, width=size, scale=(0.2, 1.0), p=1.0),
-        *([A.Rotate(limit=90,  interpolation=1, border_mode=4, value=None, p=1)] if add_rotations else []),
-        *([A.Rotate(limit=180, interpolation=1, border_mode=4, value=None, p=1)] if add_rotations else []),
-        *([A.Rotate(limit=270, interpolation=1, border_mode=4, value=None, p=1)] if add_rotations else []),
+        # TODO: color jitter ?
+        *([A.RandomRotate90(p=1)] if add_rotations else []),
         A.GaussianBlur(blur_limit=(3, 7), sigma_limit=0.1, p=0.5),
         A.Normalize(mean=image_mean, std=image_std),
         ToTensorV2(),
